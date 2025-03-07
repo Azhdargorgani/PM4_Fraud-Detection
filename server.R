@@ -8,6 +8,7 @@ library(DT)
 
 source("FDS_Retrain_Model.R", local = TRUE)
 source("FDS_predict_tx.R", local = TRUE)
+source("FDS_DEMO_SIM.R", local = TRUE)
 
 server <- function(input, output, session) {
   # 📌 Display last model update time
@@ -47,13 +48,7 @@ server <- function(input, output, session) {
   
   # 📌 Simulate a Transaction and predict
   observeEvent(input$sim_tx,{
-    demo_data <- readRDS("99_DATA/demo_data.rds")
-    tx_index <-sample(1:nrow(demo_data), size = sample(1:10, 1))
-    tx_demo<- demo_data[tx_index,]
-    demo_data <- demo_data[-c(tx_index),]
-    saveRDS(demo_data, "99_DATA/demo_data.rds")
-    
-    predict_transactions(tx_demo)
+    demo("99_DATA/demo_data.rds")
   })
   
   # 📌 Load pending transactions for display

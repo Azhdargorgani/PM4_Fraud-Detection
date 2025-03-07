@@ -4,7 +4,7 @@ ui <- dashboardPage(
   
   dashboardSidebar(
     sidebarMenu(
-      menuItem("Dashboard", tabName = "dashboard", icon = icon("tachometer-alt")),
+      menuItem("Live Dashboard", tabName = "dashboard", icon = icon("tachometer-alt")),
       menuItem("Model Information", tabName = "model_information", icon = icon("sync-alt")),
       menuItem("Settings", tabName = "settings", icon = icon("cogs")),
       menuItem("Transactions Pending Review", tabName = "history_pending", icon = icon("search-dollar")),
