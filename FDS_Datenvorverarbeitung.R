@@ -48,16 +48,15 @@ tx <- merge(tx, TX_count,
 rm(TX_count)
 
 #___________________datenaufteilung (train/test)__________________
-set.seed(123)  
-train_index <- sample(1:nrow(tx), size = 0.7 * nrow(tx))  # 70% für Training
-test_index <- setdiff(1:nrow(tx), train_index)  
-test_index <- sample(test_index, size = 0.1 * nrow(tx))   # 20% für Test
-demo_index <- setdiff(1:nrow(tx), c(train_index, test_index))  # 10% für Demo
+demo_index <- (1:(nrow(tx)*0.1))
+train_index <- sample(1:nrow(tx[-c(demo_index),]), size = 0.8 * nrow(tx[-c(demo_index),]))  # 80% für Training
+test_index <- setdiff(1:nrow(tx), train_index)  #20 für Test
 
-train_data <- tx[train_index, ]   # 70% Training
-test_data  <- tx[test_index, ]    # 20% Test
-demo_data  <- tx[demo_index, ]    # 10% Demo für Präsentation
 
+
+train_data <- tx[train_index, ]   
+test_data  <- tx[test_index, ]    
+demo_data  <- tx[demo_index, ]    
 rm(train_index)
 rm(test_index)
 rm(demo_index)

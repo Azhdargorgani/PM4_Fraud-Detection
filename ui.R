@@ -44,9 +44,10 @@ ui <- dashboardPage(
       
       
       ),
-      # 📌 Data Historisation
+      # 📌 Data Pending History
       tabItem(tabName = "history_pending",
-              h2("Transactions Rending Review"),
+              h2("Transactions Pending Review"),
+              actionButton("refresh_pend_history", "Update Table", icon = icon("sync-alt")),
               DT::dataTableOutput("transaction_table")
       )
     )
