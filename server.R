@@ -1,9 +1,8 @@
-
-library(shiny)
 library(shinydashboard)
 library(randomForest)
 library(dplyr)
 library(DT)
+library(shiny)
 
 
 source("FDS_Retrain_Model.R", local = TRUE)
@@ -25,7 +24,6 @@ server <- function(input, output, session) {
     result <- tryCatch(
       {
         retrain_model()  # Calls the retraining function from external script
-        "✅ Model successfully updated!"
       },
       warning = function(w) paste("⚠️ Warning:", conditionMessage(w)),
       error = function(e) paste("❌ Error:", conditionMessage(e))
@@ -46,22 +44,54 @@ server <- function(input, output, session) {
     }
   })
   
-  # 📌 Simulate a Transaction and predict
-  observeEvent(input$sim_tx,{
-    demo("99_DATA/demo_data.rds")
-  })
+  # 📌 Predict Transaction Fraud (demo)
+  observeEvent(
+    input$sim_tx, {
+      predict_transactions(demo())
+    }
+  )
   
-  # 📌 Load pending transactions for display
-  output$transaction_table <- renderDataTable({
+  # 📌 Historical Data pending (editable)
+  rv <- reactiveValues(data = {
     if (file.exists("99_DATA/pending_history.rds")) {
       readRDS("99_DATA/pending_history.rds")
-    } else {
-      data.frame(Message = "No transactions yet")
+    } else {data.frame(Message = "No transactions yet")  
     }
-  }, options = list(
-    scrollY = "400px",
-    scrollX = "400px"
-  ))
+  })
+
+  output$transaction_table <- DT::renderDataTable({
+    datatable(rv$data, editable = "cell", options = list(
+      scrollY = "400px",
+      scrollX = "400px"
+    ))
+  }, server = FALSE)
+  
+  # Capture and save table edits
+  observeEvent(input$transaction_table_cell_edit, {
+    info <- input$transaction_table_cell_edit
+    row <- info$row
+    col <- info$col
+    new_value <- info$value
+    
+    # Ensure the edit is in the 'Prediction' column and legit lable
+    if (col == which(names(rv$data) == "Prediction") && 
+        new_value %in% c("Fraud", "no Fraud")){
+      rv$data[row, col] <- new_value  
+      saveRDS(rv$data, "99_DATA/pending_history.rds") 
+    }
+  })
+  
+  # Refresh table when button is clicked
+  observeEvent(input$refresh_pend_history, {
+    rv$data <- {
+      if (file.exists("99_DATA/pending_history.rds")) {
+        readRDS("99_DATA/pending_history.rds")
+      } else {
+        data.frame(Message = "No transactions yet")
+      }
+    }
+  })
+  
 }
 
 
