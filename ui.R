@@ -49,6 +49,7 @@ ui <- dashboardPage(
               h2("Transactions Pending Review"),
               actionButton("refresh_pend_history", "Update Table", icon = icon("sync-alt")),
               DT::dataTableOutput("transaction_table")
+              
       )
     )
   )
