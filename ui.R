@@ -5,10 +5,9 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Live Dashboard", tabName = "dashboard", icon = icon("tachometer-alt")),
-      menuItem("Model Information", tabName = "model_information", icon = icon("sync-alt")),
-      menuItem("Settings", tabName = "settings", icon = icon("cogs")),
       menuItem("Transactions Pending Review", tabName = "history_pending", icon = icon("search-dollar")),
-      menuItem("Transaction History", tabName = "history", icon = icon("database"))
+      menuItem("Transaction History", tabName = "history", icon = icon("database")),
+      menuItem("Model Information", tabName = "model_information", icon = icon("sync-alt"))
     )
   ),
   
@@ -32,23 +31,26 @@ ui <- dashboardPage(
                     textOutput("model_accuracy")))
       ),
       
-      # 📌 Settings Tab
-      tabItem(tabName = "settings",
-              h2("Settings"),
-              p("Additional configurations can be added here.")
-      ),
-      
       # 📌 Data Historisation
       tabItem(tabName = "history",
               h2("Transaction History")
-      
       
       ),
       # 📌 Data Pending History
       tabItem(tabName = "history_pending",
               h2("Transactions Pending Review"),
+              fluidRow(
               actionButton("refresh_pend_history", "Update Table", icon = icon("sync-alt")),
-              DT::dataTableOutput("transaction_table")
+              box(sliderInput("move_count", "Anzahl der Einträge verschieben:", min = 1, max = 50, value = 10),
+              actionButton("move_to_history", "Verschiebe in Historie", icon = icon("arrow-right"))),
+              box(
+                title = "Pending Transactions", 
+                status = "primary", 
+                solidHeader = TRUE, 
+                width = 12, 
+                DTOutput("transaction_table")
+              )
+              )
               
       )
     )
