@@ -5,7 +5,8 @@ retrain_model <- function(hist_data_path = "99_DATA/historical_approved_data.rds
                           train_data_path = "99_DATA/train_data_Fraud.rds",
                           model_path = "80_MODELS/fraud_model.rds",
                           test_data_path = "99_DATA/test_data.rds",
-                          test_labels_path = "99_DATA/test_labels.rds") {
+                          test_labels_path = "99_DATA/test_labels.rds"
+                          ) {
   # Check if main training data exists
   if (!file.exists(train_data_path)) {
     return("Error: No main training data found! Retraining aborted.")
@@ -23,36 +24,40 @@ retrain_model <- function(hist_data_path = "99_DATA/historical_approved_data.rds
     train_data <- main_train_data}  # Train only with main data
   
   new_model <- randomForest(TX_FRAUD ~ ., data = train_data, ntree = 100)
-
   
-  #--------Only save model if better than old one---
-  # Load test data for evaluation (if available)
-    test_data <- readRDS(test_data_path)
-    test_labels <- readRDS(test_labels_path)
-    #bewertung modele noch überarbeiten evt funktion!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (file.exists(model_path)) {
-      old_model <- readRDS(model_path)
-      old_acc <- sum(predict(old_model, test_data) == test_labels$TX_FRAUD) / nrow(test_data)
-      new_acc <- sum(predict(new_model, test_data) == test_labels$TX_FRAUD) / nrow(test_data)
-
-      # Only save if the new model is better
-      if (new_acc >= old_acc) {
-        saveRDS(new_model, model_path)
-
-        return("✅ New model trained and saved!")
-        
-      } else {
-        return("⚠️ Old model was better. No changes made.")
-        
-      }
-
+  
+  # Save all 3 models
+  old_model <- readRDS("80_MODELS/fraud_model.rds")
+  saveRDS(new_model, "80_MODELS/new_fraud_model.rds")
+  saveRDS(old_model, "80_MODELS/old_fraud_model.rds")
+  
+  # Modell Evaluate 
+  
+  old_model_eval <- evaluate_model(model_path = "80_MODELS/old_fraud_model.rds")
+  new_model_eval <- evaluate_model(model_path = "80_MODELS/new_fraud_model.rds")
+  
+  extract_metrics <- function(cm) {
+    if (is.null(cm)) {
+      return(data.frame(Accuracy = NA, Precision = NA, Recall = NA, F1_Score = NA))
     }
+    return(data.frame(
+      Accuracy = cm$overall["Accuracy"],
+      Precision = cm$byClass["Precision"],
+      Recall = cm$byClass["Sensitivity"],
+      F1_Score = cm$byClass["F1"]
+    ))
+  }
   
+  old_metrics <- extract_metrics(old_model_eval)
+  new_metrics <- extract_metrics(new_model_eval)
+  
+  return(list(old_model = old_metrics, new_model = new_metrics))
 }
-  
-retrain_model()
 
+metrics_result <-retrain_model()
 
+metrics_result$old_model
+metrics_result$new_model
 
 
 
