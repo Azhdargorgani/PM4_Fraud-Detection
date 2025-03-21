@@ -27,7 +27,7 @@ evaluate_model <- function(model_path = "80_MODELS/fraud_model.rds",
 
 #--------------------------- Modellbewertung ausführen ---------------------------#
 cm <- evaluate_model()
-
+cm
 cat("\n",
     "📊 Model Evaluation Metrics:\n",
     "--------------------------------\n",
@@ -36,3 +36,4 @@ cat("\n",
     "🔁 Recall:", cm$byClass["Sensitivity"], "\n",
     "📏 F1-Score:", cm$byClass["F1"], "\n",
     "--------------------------------\n")
+

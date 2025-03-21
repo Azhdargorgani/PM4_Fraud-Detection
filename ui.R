@@ -24,13 +24,16 @@ ui <- dashboardPage(
       tabItem(tabName = "model_information",
               h2("Model Information"),
               actionButton("retrain_model", "Retrain Model with New Data", icon = icon("redo")),
+              actionButton("accept_new_model", "accept new Model", icon = icon("check")),
               textOutput("update_status"),
               fluidRow(
-                box(title = "Last Model Update", width = 6, status = "primary",
-                    textOutput("last_update")),
-                box(title = "Current Model Accuracy", width = 6, status = "success",
-                    textOutput("model_accuracy")))
-      ),
+                box(title = "Old Model Metrics", width = 6, status = "warning",
+                    tableOutput("old_model_metrics")),
+                box(title = "New Model Metrics", width = 6, status = "success",
+                    tableOutput("new_model_metrics"))
+              )
+      )
+      ,
       
       # 📌 Settings Tab
       tabItem(tabName = "settings",
