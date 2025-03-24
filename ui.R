@@ -1,3 +1,14 @@
+library(shinydashboard)
+library(randomForest)
+library(dplyr)
+library(DT)
+library(shiny)
+
+
+source("FDS_Retrain_Model.R", local = TRUE)
+source("FDS_predict_tx.R", local = TRUE)
+source("FDS_DEMO_SIM.R", local = TRUE)
+source("FDS_Shiny_Functions.R", local = TRUE)
 
 ui <- dashboardPage(
   dashboardHeader(title = "Fraud Detection System"),

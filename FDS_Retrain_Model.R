@@ -23,30 +23,12 @@ retrain_model <- function(hist_data_path = "99_DATA/historical_approved_data.rds
     train_data <- main_train_data}  # Train only with main data
   
   new_model <- randomForest(TX_FRAUD ~ ., data = train_data, ntree = 100)
-
   
-  #--------Only save model if better than old one---
-  # Load test data for evaluation (if available)
-    test_data <- readRDS(test_data_path)
-    test_labels <- readRDS(test_labels_path)
-    #bewertung modele noch überarbeiten evt funktion!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (file.exists(model_path)) {
-      old_model <- readRDS(model_path)
-      old_acc <- sum(predict(old_model, test_data) == test_labels$TX_FRAUD) / nrow(test_data)
-      new_acc <- sum(predict(new_model, test_data) == test_labels$TX_FRAUD) / nrow(test_data)
+  #save all 3 models
+  old_model <- readRDS("80_MODELS/fraud_model.rds")
+  saveRDS(new_model, "80_MODELS/new_fraud_model.rds")
+  saveRDS(old_model, "80_MODELS/old_fraud_model.rds")
 
-      # Only save if the new model is better
-      if (new_acc >= old_acc) {
-        saveRDS(new_model, model_path)
-
-        return("✅ New model trained and saved!")
-        
-      } else {
-        return("⚠️ Old model was better. No changes made.")
-        
-      }
-
-    }
   
 }
   
