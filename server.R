@@ -2,9 +2,7 @@
 server <- function(input, output, session) {
   # 📌 Meta System Functions¨
   #Simulate time
-  month <- factor(c(1),
-                  levels = 1:12,
-                  labels = month.name)
+  month_time <- 1
   
   # 📌 Display last model update time
   model_update_trigger <- reactiveVal(Sys.time())

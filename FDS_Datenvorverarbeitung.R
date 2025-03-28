@@ -33,7 +33,8 @@ tx$TX_MINUTE <- minute(tx$TX_DATETIME)
 tx$TX_SECOND <- second(tx$TX_DATETIME)
 tx$TX_WEEKDAY <- wday(tx$TX_DATETIME, label = TRUE)
 
-tx<- subset(tx, select = c(-TX_DATETIME))
+tx<- subset(tx, select = c(-TX_DATETIME, -TX_TIME_SECONDS))
+tx$TX_ID <- 1:nrow(tx)
 
 #---Nr. TX last 24hrs---
 TX_count <- aggregate(TRANSACTION_ID ~ CUSTOMER_ID + TX_DATE, 
@@ -64,6 +65,9 @@ rm(demo_index)
 #Zielvariabeln von Testdata entfernen
 test_labels <- data.frame(TX_FRAUD = test_data$TX_FRAUD,
                           TX_FRAUD_SCENARIO = test_data$TX_FRAUD_SCENARIO)
+demo_labels <- data.frame(TX_FRAUD = demo_data$TX_FRAUD,
+                          TX_ID = demo_data$TX_ID,
+                          TX_FRAUD_SCENARIO = demo_data$TX_FRAUD_SCENARIO)
 test_data <- subset(test_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
 demo_data <- subset(demo_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
 
@@ -83,5 +87,4 @@ saveRDS(train_data_Fraud, file = "99_DATA/train_data_Fraud.rds")
 saveRDS(test_data, file = "99_DATA/test_data.rds")
 saveRDS(test_labels, file = "99_DATA/test_labels.rds")
 saveRDS(demo_data, file = "99_DATA/demo_data.rds")
-
-
+saveRDS(demo_labels, file = "99_DATA/demo_labels.rds")
