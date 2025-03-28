@@ -13,16 +13,7 @@ retrain_model <- function(hist_data_path = "99_DATA/historical_approved_data.rds
   }
   
   # Load main (large) training data
-  main_train_data <- readRDS(train_data_path)
-  
-  # Load approved historical training data (if available)----------------------------------commented bc we dont want to mix training and test data for poc
-  # if (file.exists(hist_data_path)) {
-  #   hist_data <- readRDS(hist_data_path)
-  #   train_data <- rbind(main_train_data, hist_data)
-  # } else {
-  # warning("No historical approved data found. Training only with main dataset.")
-    train_data <- main_train_data}  # Train only with main data
-  
+  train_data <- readRDS(train_data_path)
   new_model <- randomForest(TX_FRAUD ~ ., data = train_data, ntree = 100)
   
   

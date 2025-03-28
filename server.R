@@ -1,6 +1,11 @@
 
-
 server <- function(input, output, session) {
+  # 📌 Meta System Functions
+  #Simulate time
+  month <- factor(c(1),
+                  levels = 1:12,
+                  labels = month.name)
+  
   # 📌 Display last model update time
   output$last_update <- renderText({
     if (file.exists("80_MODELS/fraud_model.rds")) {
@@ -17,8 +22,6 @@ server <- function(input, output, session) {
         withCallingHandlers(
           {
             res <- retrain_model()
-            output$update_status <- renderText("⚠️ Warning: No historical approved data found. Training only with main dataset.")
-            res
           },
           warning = function(w) {
             invokeRestart("muffleWarning")
