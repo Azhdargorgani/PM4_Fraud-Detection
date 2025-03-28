@@ -86,7 +86,7 @@ server <- function(input, output, session) {
     } else {data.frame(Message = "No transactions yet")  
     }
   })
-
+  
   output$transaction_table <- DT::renderDataTable({
     datatable(rv$pending_data, editable = "cell", options = list(
       scrollY = "400px",
@@ -125,8 +125,6 @@ server <- function(input, output, session) {
   
   
 }
-
-
 
 
 

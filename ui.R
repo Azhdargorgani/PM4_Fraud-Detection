@@ -48,22 +48,22 @@ ui <- dashboardPage(
       # 📌 Data Historisation
       tabItem(tabName = "history",
               h2("Transaction History")
-      
+              
       ),
       # 📌 Data Pending History
       tabItem(tabName = "history_pending",
               h2("Transactions Pending Review"),
               fluidRow(
-              actionButton("refresh_pend_history", "Update Table", icon = icon("sync-alt")),
-              box(sliderInput("move_count", "Anzahl der Einträge verschieben:", min = 1, max = 50, value = 10),
-              actionButton("move_to_history", "Verschiebe in Historie", icon = icon("arrow-right"))),
-              box(
-                title = "Pending Transactions", 
-                status = "primary", 
-                solidHeader = TRUE, 
-                width = 12, 
-                DTOutput("transaction_table")
-              )
+                actionButton("refresh_pend_history", "Update Table", icon = icon("sync-alt")),
+                box(sliderInput("move_count", "Anzahl der Einträge verschieben:", min = 1, max = 50, value = 10),
+                    actionButton("move_to_history", "Verschiebe in Historie", icon = icon("arrow-right"))),
+                box(
+                  title = "Pending Transactions", 
+                  status = "primary", 
+                  solidHeader = TRUE, 
+                  width = 12, 
+                  DTOutput("transaction_table")
+                )
               )
               
       )
