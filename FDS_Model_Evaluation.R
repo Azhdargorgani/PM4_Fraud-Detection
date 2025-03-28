@@ -22,19 +22,19 @@ evaluate_model <- function(model_path = "80_MODELS/fraud_model.rds",
   
   # Erstelle die Confusion Matrix
   cm <- confusionMatrix(predictions, test_labels$TX_FRAUD)
-  return(cm)
+  
+  # Extrahiere gewünschte Metriken als DataFrame
+  metrics_df <- data.frame(
+    Accuracy = cm$overall["Accuracy"],
+    Precision = cm$byClass["Precision"],
+    Recall = cm$byClass["Sensitivity"],
+    F1_Score = cm$byClass["F1"]
+  )
+  
+  return(metrics_df)
 }
-
 #--------------------------- Modellbewertung ausführen ---------------------------#
 cm <- evaluate_model()
 cm
 
-#cat("\n",
-#    "📊 Model Evaluation Metrics:\n",
-#    "--------------------------------\n",
-#    "✅ Accuracy:", cm$overall["Accuracy"], "\n",
-#    "🎯 Precision:", cm$byClass["Precision"], "\n",
-#    "🔁 Recall:", cm$byClass["Sensitivity"], "\n",
-#    "📏 F1-Score:", cm$byClass["F1"], "\n",
-#    "--------------------------------\n")
 
