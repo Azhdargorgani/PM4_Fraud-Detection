@@ -6,23 +6,14 @@ retrain_model <- function(hist_data_path = "99_DATA/historical_approved_data.rds
                           model_path = "80_MODELS/fraud_model.rds",
                           test_data_path = "99_DATA/test_data.rds",
                           test_labels_path = "99_DATA/test_labels.rds"
-                          ) {
+) {
   # Check if main training data exists
   if (!file.exists(train_data_path)) {
     return("Error: No main training data found! Retraining aborted.")
   }
   
   # Load main (large) training data
-  main_train_data <- readRDS(train_data_path)
-  
-  # Load approved historical training data (if available)
-  if (file.exists(hist_data_path)) {
-    hist_data <- readRDS(hist_data_path)
-    train_data <- rbind(main_train_data, hist_data)
-  } else {
-    warning("No historical approved data found. Training only with main dataset.")
-    train_data <- main_train_data}  # Train only with main data
-  
+  train_data <- readRDS(train_data_path)
   new_model <- randomForest(TX_FRAUD ~ ., data = train_data, ntree = 100)
   
   
@@ -58,6 +49,9 @@ metrics_result <-retrain_model()
 
 metrics_result$old_model
 metrics_result$new_model
+
+
+
 
 
 

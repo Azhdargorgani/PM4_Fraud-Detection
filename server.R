@@ -1,20 +1,11 @@
-library(shinydashboard)
-library(randomForest)
-library(dplyr)
-library(DT)
-library(shiny)
-library(caret)
-
-
-source("FDS_Retrain_Model.R", local = TRUE)
-source("FDS_predict_tx.R", local = TRUE)
-source("FDS_DEMO_SIM.R", local = TRUE)
-source("FDS_Model_Evaluation.R", local = TRUE)
-
-# 📦 Globale Variable zur Speicherung der Metriken
-metrics_result <- NULL
 
 server <- function(input, output, session) {
+  # 📌 Meta System Functions
+  #Simulate time
+  month <- factor(c(1),
+                  levels = 1:12,
+                  labels = month.name)
+  
   # 📌 Display last model update time
   output$last_update <- renderText({
     if (file.exists("80_MODELS/fraud_model.rds")) {
@@ -31,8 +22,6 @@ server <- function(input, output, session) {
         withCallingHandlers(
           {
             res <- retrain_model()
-            output$update_status <- renderText("⚠️ Warning: No historical approved data found. Training only with main dataset.")
-            res
           },
           warning = function(w) {
             invokeRestart("muffleWarning")
@@ -83,20 +72,6 @@ server <- function(input, output, session) {
   })
   
   
-  # 📌 Display Model Accuracy
-  
-  # output$model_accuracy <- renderText({
-  #   if (file.exists("80_MODELS/fraud_model.rds")) {
-  #     test_data <- readRDS("80_MODELS/test_data.rds")
-  #     model <- readRDS("80_MODELS/fraud_model.rds")
-  #     acc <- sum(predict(model, test_data) == test_data$TX_FRAUD) / nrow(test_data)
-  #     paste("Current Model Accuracy:", round(acc * 100, 2), "%")
-  #   } else {
-  #     "No model trained yet."
-  #   }
-  # })
-
-  
   # 📌 Predict Transaction Fraud (demo)
   observeEvent(
     input$sim_tx, {
@@ -104,16 +79,16 @@ server <- function(input, output, session) {
     }
   )
   
-  # 📌 Historical Data pending (editable)
+  # 📌 Historical Data pending table (editable)
   rv <- reactiveValues(data = {
     if (file.exists("99_DATA/pending_history.rds")) {
       readRDS("99_DATA/pending_history.rds")
     } else {data.frame(Message = "No transactions yet")  
     }
   })
-
+  
   output$transaction_table <- DT::renderDataTable({
-    datatable(rv$data, editable = "cell", options = list(
+    datatable(rv$pending_data, editable = "cell", options = list(
       scrollY = "400px",
       scrollX = "400px"
     ))
@@ -126,17 +101,16 @@ server <- function(input, output, session) {
     col <- info$col
     new_value <- info$value
     
-    # Ensure the edit is in the 'Prediction' column and legit lable
-    if (col == which(names(rv$data) == "Prediction") && 
+    if (col == which(names(rv$pending_data) == "Prediction") && 
         new_value %in% c("Fraud", "no Fraud")){
-      rv$data[row, col] <- new_value  
-      saveRDS(rv$data, "99_DATA/pending_history.rds") 
+      rv$pending_data[row, col] <- new_value  
+      saveRDS(rv$pending_data, "99_DATA/pending_history.rds") 
     }
   })
   
   # Refresh table when button is clicked
   observeEvent(input$refresh_pend_history, {
-    rv$data <- {
+    rv$pending_data <- {
       if (file.exists("99_DATA/pending_history.rds")) {
         readRDS("99_DATA/pending_history.rds")
       } else {
@@ -145,9 +119,12 @@ server <- function(input, output, session) {
     }
   })
   
+  observeEvent(input$move_to_history, {
+    rv$pending_data <- move_to_history(move_count = input$move_count)
+  })
+  
+  
 }
-
-
 
 
 
