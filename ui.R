@@ -6,12 +6,6 @@ library(shiny)
 library(caret)
 library(shinyjs)
 
-source("FDS_Retrain_Model.R", local = TRUE)
-source("FDS_Model_Evaluation.R", local = TRUE)
-source("FDS_predict_tx.R", local = TRUE)
-source("FDS_DEMO_SIM.R", local = TRUE)
-source("FDS_Shiny_Functions.R", local = TRUE)
-
 ui <- dashboardPage(
   dashboardHeader(title = "Fraud Detection System"),
   

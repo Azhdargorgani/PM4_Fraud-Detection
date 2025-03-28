@@ -1,5 +1,10 @@
 
 server <- function(input, output, session) {
+  source("FDS_Retrain_Model.R", local = TRUE)
+  source("FDS_Model_Evaluation.R", local = TRUE)
+  source("FDS_predict_tx.R", local = TRUE)
+  source("FDS_DEMO_SIM.R", local = TRUE)
+  source("FDS_Shiny_Functions.R", local = TRUE)
   # 📌 Meta System Functions¨
   #Simulate time
   month_time <- 1
