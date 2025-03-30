@@ -5,9 +5,15 @@ library(DT)
 library(shiny)
 library(caret)
 library(shinyjs)
+library(lubridate)
+library(leaflet)
 
 ui <- dashboardPage(
-  dashboardHeader(title = "Fraud Detection System"),
+  dashboardHeader(title = "FD-System",
+                  
+  tags$li(class = "dropdown",
+          uiOutput("month_sim"))  # Knopf und ausgabe
+  ),
   
   dashboardSidebar(
     sidebarMenu(
@@ -17,7 +23,6 @@ ui <- dashboardPage(
       menuItem("Model Information", tabName = "model_information", icon = icon("sync-alt"))
     )
   ),
-  
   dashboardBody(
     useShinyjs(),
     tabItems(
@@ -25,7 +30,11 @@ ui <- dashboardPage(
       # 📌 Dashboard Tab
       tabItem(tabName = "dashboard",
               h2("Overview"),
-              actionButton("sim_tx", "simulate_transaction")
+              actionButton("sim_tx", "simulate_transaction"),
+              fluidRow(box(title = "Fraud Locations", solidHeader = TRUE,
+                leafletOutput("fraud_map", height = 600),
+                br(),
+                DTOutput("transaction_table")))
       ),
       # 📌 Model Retraining Tab
       tabItem(tabName = "model_information",
