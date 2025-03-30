@@ -39,7 +39,7 @@ datenvorverarbeitung <- name <- function(variables) {
   tx$TX_ID <- 1:nrow(tx)
   
   #---Nr. TX last 24hrs---
-  TX_count <- aggregate(TRANSACTION_ID ~ CUSTOMER_ID + TX_DATE, 
+  TX_count <- aggregate(TRANSACTION_ID ~ CUSTOMER_ID + TX_FRAUD, 
                         data = tx, FUN = length)
   # Rename the count column
   colnames(TX_count)[3] <- "tx_count_same_day"
