@@ -1,10 +1,17 @@
 
 server <- function(input, output, session) {
-  # 📌 Meta System Functions¨
-  #Simulate time
-  month_time <- 1
+  source("FDS_Retrain_Model.R", local = TRUE)
+  source("FDS_Model_Evaluation.R", local = TRUE)
+  source("FDS_predict_tx.R", local = TRUE)
+  source("FDS_DEMO_SIM.R", local = TRUE)
+  source("FDS_Shiny_Functions.R", local = TRUE)
   
-  # 📌 Display last model update time
+  # 📌 Meta System Functions¨
+  #Monat anpassen wenn knopf in UI header gedrückt wird
+  update_month()
+  
+
+    # 📌 Display last model update time
   model_update_trigger <- reactiveVal(Sys.time())
   
   output$last_update <- renderText({
@@ -115,7 +122,7 @@ server <- function(input, output, session) {
   # 📌 Predict Transaction Fraud (demo)
   observeEvent(
     input$sim_tx, {
-      predict_transactions(demo())
+      predict_transactions(demo(month_t = month_time()))
     }
   )
   
@@ -163,6 +170,34 @@ server <- function(input, output, session) {
     rv$pending_data <- move_to_history(move_count = input$move_count)
   })
   
+  # 📌 Dashboard
+  #map
+  fraud_data <- reactive({
+    req(rv$pending_data)
+    rv$pending_data[rv$pending_data$Prediction == "Fraud", ]
+  })
   
+  # Leaflet-Karte anzeigen
+  output$fraud_map <- renderLeaflet({
+    data <- fraud_data()
+    
+    leaflet(data) %>%
+      addProviderTiles("CartoDB.Positron") %>%
+      addCircleMarkers(
+        lng = ~y_terminal_id,
+        lat = ~x_terminal_id,
+        radius = 6,
+        color = "red",
+        stroke = FALSE,
+        fillOpacity = 0.8,
+        popup = ~paste(
+          "TX_ID:", TX_ID, "<br>",
+          "Customer:", CUSTOMER_ID, "<br>",
+          "Amount:", TX_AMOUNT, "<br>",
+          "Prediction:", Prediction, "<br>",
+          "Time:", TX_TIME
+        )
+      )
+  })
 }
 
