@@ -4,6 +4,13 @@ evaluate_model <- function(model_path = "80_MODELS/fraud_model.rds",
                            test_data_path = "99_DATA/test_data.rds", 
                            test_labels_path = "99_DATA/test_labels.rds") {
   
+  # Robustheit: existieren alle Dateien?
+  if (!file.exists(model_path) || 
+      !file.exists(test_data_path) || 
+      !file.exists(test_labels_path)) {
+    return(data.frame(Message = "Model or test data not found."))
+  }
+  
   # Lade Modell & Testdaten
   model <- readRDS(model_path)
   test_data <- readRDS(test_data_path)
