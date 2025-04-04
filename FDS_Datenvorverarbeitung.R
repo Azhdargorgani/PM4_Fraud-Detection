@@ -71,16 +71,13 @@ datenvorverarbeitung <- name <- function(variables) {
   
   #___________________datenaufteilung (train/test)__________________
   demo_index <- (1:(nrow(tx)*0.1))
-  train_index <- sample(1:nrow(tx[-c(demo_index),]), size = 0.8 * nrow(tx[-c(demo_index),]))  # 80% für Training
-  test_index <- setdiff(1:nrow(tx), train_index)  #20 für Test
   
-  
-  
-  train_data <- tx[train_index, ]   
-  test_data  <- tx[test_index, ]    
+  split_index <- createDataPartition(tx$TX_FRAUD, p = 0.8, list = FALSE)
+  train_data <- tx[split_index, ]
+  test_data  <- tx[-split_index, ]
   demo_data  <- tx[demo_index, ]    
-  rm(train_index)
-  rm(test_index)
+  
+  rm(split_index)
   rm(demo_index)
   
   #Zielvariabeln von Testdata entfernen
