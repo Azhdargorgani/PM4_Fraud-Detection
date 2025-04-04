@@ -41,19 +41,23 @@ ui <- dashboardPage(
               h2("Model Information"),
               
               # 🧩 Model Training Control Panel
-              box(title = "Model Training Settings", width = 12, status = "info", solidHeader = TRUE,
+              box(title = "Model Training Settings", width = 12, status = "primary", solidHeader = TRUE,
                   fluidRow(
                     column(width = 4,
                            numericInput("rf_ntree", "Number of Trees (Random Forest)", 
                                         value = 100, min = 10, max = 1000, step = 10)
                     ),
                     column(width = 4,
-                           br(),  # bisschen Abstand nach oben
+                           br(),
                            actionButton("retrain_model", "Retrain Model with New Data", icon = icon("redo"))
                     ),
                     column(width = 4,
                            br(),
                            actionButton("accept_new_model", "Accept New Model", icon = icon("check"))
+                    ),
+                    column(width = 4,
+                           br(),
+                           actionButton("train_initial_model", "Train Initial Model", icon = icon("play"))
                     )
                   )
               ),
