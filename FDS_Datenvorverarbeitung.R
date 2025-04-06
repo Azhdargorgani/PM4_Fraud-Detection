@@ -31,53 +31,68 @@ datenvorverarbeitung <- name <- function(variables) {
   library("lubridate")
   tx$TX_TIME <- as.POSIXct(tx$TX_DATETIME, format = "%Y-%m-%d %H:%M:%S")
   tx$TX_HOUR <- hour(tx$TX_DATETIME)
-  tx$TX_MINUTE <- minute(tx$TX_DATETIME)
-  tx$TX_SECOND <- second(tx$TX_DATETIME)
+  #tx$TX_MINUTE <- minute(tx$TX_DATETIME)
+  #tx$TX_SECOND <- second(tx$TX_DATETIME)
   tx$TX_WEEKDAY <- wday(tx$TX_DATETIME, label = TRUE)
   
   tx<- subset(tx, select = c(-TX_DATETIME, -TX_TIME_SECONDS))
-  tx$TX_ID <- 1:nrow(tx)
+  tx$dist_cust_terminal <- sqrt((tx$x_customer_id - tx$x_terminal_id)^2 +
+                                  (tx$y_customer_id - tx$y_terminal_id)^2)
   
   #---Nr. TX last 24hrs---
-  TX_count <- aggregate(TRANSACTION_ID ~ CUSTOMER_ID + TX_TIME, 
+  tx$TX_Date <- as.Date(tx$TX_TIME)
+  TX_count <- aggregate(TRANSACTION_ID ~ CUSTOMER_ID + TX_Date, 
                         data = tx, FUN = length)
   # Rename the count column
   colnames(TX_count)[3] <- "tx_count_same_day"
   
   # Merge back to original dataset
   tx <- merge(tx, TX_count, 
-              by = c("CUSTOMER_ID", "TX_TIME"), 
+              by = c("CUSTOMER_ID", "TX_Date"), 
               all.x = TRUE)
   rm(TX_count)
   
+  #---Amount TX last 24hrs---
+  TX_sum <- aggregate(TX_AMOUNT ~ CUSTOMER_ID + TX_Date, 
+                      data = tx, FUN = sum)
+  colnames(TX_sum)[3] <- "tx_sum_same_day"
+  
+  tx <- merge(tx, TX_sum, 
+              by = c("CUSTOMER_ID", "TX_Date"), 
+              all.x = TRUE)
+  rm(TX_sum)
+  tx<- subset(tx, select = -TX_Date)
+  
+  #-------------------standartisierte abweichung amount-----------------
+  tx$amount_z_score <- (tx$TX_AMOUNT - tx$mean_amount) / (tx$std_amount + 1e-6)
+  
+  #Absolute difference (how much more or less active today?)
+  tx$tx_count_diff <- tx$tx_count_same_day - tx$mean_nb_tx_per_day
+  
   #___________________datenaufteilung (train/test)__________________
   demo_index <- (1:(nrow(tx)*0.1))
-  train_index <- sample(1:nrow(tx[-c(demo_index),]), size = 0.8 * nrow(tx[-c(demo_index),]))  # 80% für Training
-  test_index <- setdiff(1:nrow(tx), train_index)  #20 für Test
   
-  
-  
-  train_data <- tx[train_index, ]   
-  test_data  <- tx[test_index, ]    
+  split_index <- createDataPartition(tx$TX_FRAUD, p = 0.8, list = FALSE)
+  train_data <- tx[split_index, ]
+  test_data  <- tx[-split_index, ]
   demo_data  <- tx[demo_index, ]    
-  rm(train_index)
-  rm(test_index)
+  
+  rm(split_index)
   rm(demo_index)
   
   #Zielvariabeln von Testdata entfernen
   test_labels <- data.frame(TX_FRAUD = test_data$TX_FRAUD,
                             TX_FRAUD_SCENARIO = test_data$TX_FRAUD_SCENARIO)
   demo_labels <- data.frame(TX_FRAUD = demo_data$TX_FRAUD,
-                            TX_ID = demo_data$TX_ID,
+                            TX_ID = demo_data$TRANSACTION_ID,
                             TX_FRAUD_SCENARIO = demo_data$TX_FRAUD_SCENARIO)
   test_data <- subset(test_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
   demo_data <- subset(demo_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
-  
-  #Training Daten für beide modelle vorbereiten
-  train_data_Scenario <- train_data[train_data$TX_FRAUD_SCENARIO !=0,]
-  train_data_Scenario <- subset(train_data_Scenario, select = -TX_FRAUD)
-  
-  train_data_Fraud <- subset(train_data, select = -TX_FRAUD_SCENARIO)
+  train_data_Fraud <- subset(train_data, select = c(TX_FRAUD, TERMINAL_ID, TX_AMOUNT, 
+                                                    x_terminal_id, 
+                                                    y_terminal_id, TX_HOUR, 
+                                                    TX_WEEKDAY, dist_cust_terminal, 
+                                                    tx_sum_same_day, amount_z_score))
   
   #___________________datenbalancierung (SMOTE)_____________________
   #vorerst nicht vorgesehen, eher bei random forest die wahr.

@@ -200,7 +200,8 @@ server <- function(input, output, session) {
         fillOpacity = 0.8,
         popup = ~paste(
           "TX_ID:", TX_ID, "<br>",
-          "Customer:", CUSTOMER_ID, "<br>",
+          "Customer_ID:", CUSTOMER_ID, "<br>",
+          "Terminal_ID:", TERMINAL_ID, "<br>",
           "Amount:", TX_AMOUNT, "<br>",
           "Prediction:", Prediction, "<br>",
           "Time:", TX_TIME
