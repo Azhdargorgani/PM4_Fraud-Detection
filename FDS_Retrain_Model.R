@@ -20,7 +20,17 @@ train_model <- function(mode = c("initial", "retrain"),
     }
     
     train_data <- readRDS(train_data_path)
-    model <- randomForest(TX_FRAUD ~ ., data = train_data, ntree = ntree)
+    
+    # training (with 10-fold CV)
+    ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
+    model <- train(
+      TX_FRAUD ~ .,
+      data = train_data,
+      method = "rf",
+      trControl = ctrl,
+      ntree = ntree
+    )
+    
     saveRDS(model, model_path)
     
     return("✅ Initial model trained and saved as fraud_model.rds")
@@ -34,7 +44,15 @@ train_model <- function(mode = c("initial", "retrain"),
     file.copy(from = model_path, to = "80_MODELS/old_fraud_model.rds", overwrite = TRUE)
     
     train_data <- readRDS(train_data_path)
-    new_model <- randomForest(TX_FRAUD ~ ., data = train_data, ntree = ntree)
+    
+    # training (with 10-fold CV)
+    ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
+    new_model <-     model <- train(TX_FRAUD ~ .,
+                                    data = train_data,
+                                    method = "rf",
+                                    trControl = ctrl,
+                                    ntree = ntree
+                                    )
     saveRDS(new_model, "80_MODELS/new_fraud_model.rds")
     
     if (file.exists(test_data_path) && file.exists(test_labels_path)) {
