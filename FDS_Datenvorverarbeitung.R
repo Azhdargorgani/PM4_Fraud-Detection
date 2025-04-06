@@ -1,4 +1,4 @@
-
+library(lubridate)
 datenvorverarbeitung <- name <- function(variables) {
   #____________________Daten Vorverarbeiten__________________________
   # Daten Einlesen / erste vorverarbeitung
@@ -39,14 +39,14 @@ datenvorverarbeitung <- name <- function(variables) {
   tx$TX_ID <- 1:nrow(tx)
   
   #---Nr. TX last 24hrs---
-  TX_count <- aggregate(TRANSACTION_ID ~ CUSTOMER_ID + TX_FRAUD, 
+  TX_count <- aggregate(TRANSACTION_ID ~ CUSTOMER_ID + TX_TIME, 
                         data = tx, FUN = length)
   # Rename the count column
   colnames(TX_count)[3] <- "tx_count_same_day"
   
   # Merge back to original dataset
   tx <- merge(tx, TX_count, 
-              by = c("CUSTOMER_ID", "TX_DATE"), 
+              by = c("CUSTOMER_ID", "TX_TIME"), 
               all.x = TRUE)
   rm(TX_count)
   
