@@ -1,6 +1,8 @@
 source("FDS_Model_Evaluation.R", local = TRUE)
 #___________________Model 1 (Fraud / not Fraud) retraining__________________________________
 
+source("FDS_Model_Evaluation.R", local = TRUE)
+
 train_model <- function(mode = c("initial", "retrain"),
                         train_data_path = "99_DATA/train_data_Fraud.rds",
                         model_path = "80_MODELS/fraud_model.rds",
@@ -21,19 +23,25 @@ train_model <- function(mode = c("initial", "retrain"),
     
     train_data <- readRDS(train_data_path)
     
-    # training (with 10-fold CV)
+    # CV + Modelltraining mit mtry-Tuning
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
+    tune_grid <- expand.grid(mtry = c(2, 5, 10, 13, 24))  # Beispielhafte Werte
+    
     model <- train(
       TX_FRAUD ~ .,
       data = train_data,
       method = "rf",
       trControl = ctrl,
+      tuneGrid = tune_grid,
       ntree = ntree
     )
     
     saveRDS(model, model_path)
     
-    return("✅ Initial model trained and saved as fraud_model.rds")
+    return(list(
+      message = "✅ Initial model trained and saved as fraud_model.rds",
+      best_tune = model$bestTune
+    ))
   }
   
   if (mode == "retrain") {
@@ -45,14 +53,18 @@ train_model <- function(mode = c("initial", "retrain"),
     
     train_data <- readRDS(train_data_path)
     
-    # training (with 10-fold CV)
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
-    new_model <-     model <- train(TX_FRAUD ~ .,
-                                    data = train_data,
-                                    method = "rf",
-                                    trControl = ctrl,
-                                    ntree = ntree
-                                    )
+    tune_grid <- expand.grid(mtry = c(2, 5, 10, 13, 24))
+    
+    new_model <- train(
+      TX_FRAUD ~ .,
+      data = train_data,
+      method = "rf",
+      trControl = ctrl,
+      tuneGrid = tune_grid,
+      ntree = ntree
+    )
+    
     saveRDS(new_model, "80_MODELS/new_fraud_model.rds")
     
     if (file.exists(test_data_path) && file.exists(test_labels_path)) {
@@ -61,18 +73,18 @@ train_model <- function(mode = c("initial", "retrain"),
       
       return(list(
         message = "✅ Model retrained and evaluated.",
+        best_tune = new_model$bestTune,
         old_model = old_metrics,
         new_model = new_metrics
       ))
     } else {
-      return("✅ Model retrained. No test data available for evaluation.")
+      return(list(
+        message = "✅ Model retrained. No test data available for evaluation.",
+        best_tune = new_model$bestTune
+      ))
     }
   }
 }
-
-
-
-
 
 
 

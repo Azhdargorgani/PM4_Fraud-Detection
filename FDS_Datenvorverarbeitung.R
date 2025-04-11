@@ -37,7 +37,7 @@ datenvorverarbeitung <- name <- function(variables) {
   
   tx<- subset(tx, select = c(-TX_DATETIME, -TX_TIME_SECONDS))
   tx$dist_cust_terminal <- sqrt((tx$x_customer_id - tx$x_terminal_id)^2 +
-                        (tx$y_customer_id - tx$y_terminal_id)^2)
+                                  (tx$y_customer_id - tx$y_terminal_id)^2)
   
   #---Nr. TX last 24hrs---
   tx$TX_Date <- as.Date(tx$TX_TIME)
@@ -89,10 +89,10 @@ datenvorverarbeitung <- name <- function(variables) {
   test_data <- subset(test_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
   demo_data <- subset(demo_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
   train_data_Fraud <- subset(train_data, select = c(TX_FRAUD, TERMINAL_ID, TX_AMOUNT, 
-                                              x_terminal_id, 
-                                              y_terminal_id, TX_HOUR, 
-                                              TX_WEEKDAY, dist_cust_terminal, 
-                                              tx_sum_same_day, amount_z_score))
+                                                    x_terminal_id, 
+                                                    y_terminal_id, TX_HOUR, 
+                                                    TX_WEEKDAY, dist_cust_terminal, 
+                                                    tx_sum_same_day, amount_z_score))
   
   #___________________datenbalancierung (SMOTE)_____________________
   #vorerst nicht vorgesehen, eher bei random forest die wahr.

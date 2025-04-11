@@ -8,7 +8,7 @@ predict_transactions <- function(transactions,
   rf_model <- readRDS(model_path)
   
   # Make predictions
-  transactions$Prediction <- predict(rf_model, newdata = transactions, type = "raw")
+  transactions$Prediction <- predict(rf_model, newdata = transactions, type = "response")
   print(transactions$Prediction)
   # Append predictions to pending history
   if (file.exists(pending_history_path)) {
