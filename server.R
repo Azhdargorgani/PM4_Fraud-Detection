@@ -10,7 +10,8 @@ server <- function(input, output, session) {
   #Simulate time
   month_time <- 1
   #Monat anpassen wenn knopf in UI header gedrückt wird
-  update_month()
+  month_time <<- update_month()
+  
   model_update_trigger <- reactiveVal(Sys.time())
   training_mode <- reactiveVal(NULL)
   
@@ -40,7 +41,7 @@ server <- function(input, output, session) {
     }
     
     # Modell trainieren (Initial)
-    result <- train_model(mode = "initial", ntree = input$rf_ntree)
+    result <- train_model(mode = "initial", ntree = input$rf_ntree, month_t = month_time())
     output$update_status <- renderText(result)
     training_mode("Initial Training")
     
@@ -71,7 +72,7 @@ server <- function(input, output, session) {
   
   # 📌 Retraining
   observeEvent(input$retrain_model, {
-    result <- train_model(mode = "retrain", ntree = input$rf_ntree)
+    result <- train_model(mode = "retrain", ntree = input$rf_ntree, month_t = month_time())
     
     if (is.list(result)) {
       training_mode("Retraining")
@@ -199,7 +200,7 @@ server <- function(input, output, session) {
         stroke = FALSE,
         fillOpacity = 0.8,
         popup = ~paste(
-          "TX_ID:", TX_ID, "<br>",
+          "TX_ID:", TRANSACTION_ID, "<br>",
           "Customer_ID:", CUSTOMER_ID, "<br>",
           "Terminal_ID:", TERMINAL_ID, "<br>",
           "Amount:", TX_AMOUNT, "<br>",

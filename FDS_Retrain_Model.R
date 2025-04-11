@@ -1,14 +1,18 @@
 source("FDS_Model_Evaluation.R", local = TRUE)
 #___________________Model 1 (Fraud / not Fraud) retraining__________________________________
 
-train_model <- function(mode = c("initial", "retrain"),
+train_model <- function(mode = c("initial", "retrain"), month_t,
                         train_data_path = "99_DATA/train_data_Fraud.rds",
                         model_path = "80_MODELS/fraud_model.rds",
                         ntree = 100,
                         test_data_path = "99_DATA/test_data.rds",
-                        test_labels_path = "99_DATA/test_labels.rds") {
+                        test_labels_path = "99_DATA/test_labels.rds",
+                        n_month = 1) {
   
   mode <- match.arg(mode)
+  train_data <- readRDS(train_data_path)
+  train_data <- train_data[month(train_data$TX_Date) < month_t & month(train_data$TX_Date) >= (month_t-n_month),]
+  train_data <- subset(train_data, select = -c(TX_Date))
   
   if (!file.exists(train_data_path)) {
     return("❌ Error: Training data not found.")
@@ -19,10 +23,10 @@ train_model <- function(mode = c("initial", "retrain"),
       return("⚠️ Model already exists. Please use Retrain instead.")
     }
     
-    train_data <- readRDS(train_data_path)
     
     # training (with 10-fold CV)
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
+    
     model <- train(
       TX_FRAUD ~ .,
       data = train_data,
@@ -30,7 +34,6 @@ train_model <- function(mode = c("initial", "retrain"),
       trControl = ctrl,
       ntree = ntree
     )
-    
     saveRDS(model, model_path)
     
     return("✅ Initial model trained and saved as fraud_model.rds")
@@ -42,8 +45,6 @@ train_model <- function(mode = c("initial", "retrain"),
     }
     
     file.copy(from = model_path, to = "80_MODELS/old_fraud_model.rds", overwrite = TRUE)
-    
-    train_data <- readRDS(train_data_path)
     
     # training (with 10-fold CV)
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
