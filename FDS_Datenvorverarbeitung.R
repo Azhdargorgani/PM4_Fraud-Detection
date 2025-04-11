@@ -33,7 +33,8 @@ datenvorverarbeitung <- name <- function(variables) {
   tx$TX_HOUR <- hour(tx$TX_DATETIME)
   #tx$TX_MINUTE <- minute(tx$TX_DATETIME)
   #tx$TX_SECOND <- second(tx$TX_DATETIME)
-  tx$TX_WEEKDAY <- wday(tx$TX_DATETIME, label = TRUE)
+  tx$TX_WEEKDAY <- factor(wday(tx$TX_DATETIME, label = TRUE), ordered = FALSE)
+
   
   tx<- subset(tx, select = c(-TX_DATETIME, -TX_TIME_SECONDS))
   tx$dist_cust_terminal <- sqrt((tx$x_customer_id - tx$x_terminal_id)^2 +
@@ -61,7 +62,6 @@ datenvorverarbeitung <- name <- function(variables) {
               by = c("CUSTOMER_ID", "TX_Date"), 
               all.x = TRUE)
   rm(TX_sum)
-  tx<- subset(tx, select = -TX_Date)
   
   #-------------------standartisierte abweichung amount-----------------
   tx$amount_z_score <- (tx$TX_AMOUNT - tx$mean_amount) / (tx$std_amount + 1e-6)
@@ -82,24 +82,26 @@ datenvorverarbeitung <- name <- function(variables) {
   
   #Zielvariabeln von Testdata entfernen
   test_labels <- data.frame(TX_FRAUD = test_data$TX_FRAUD,
-                            TX_FRAUD_SCENARIO = test_data$TX_FRAUD_SCENARIO)
+                            TX_FRAUD_SCENARIO = test_data$TX_FRAUD_SCENARIO,
+                            TRANSACTION_ID = test_data$TRANSACTION_ID)
   demo_labels <- data.frame(TX_FRAUD = demo_data$TX_FRAUD,
-                            TX_ID = demo_data$TRANSACTION_ID,
+                            TRANSACTION_ID = demo_data$TRANSACTION_ID,
                             TX_FRAUD_SCENARIO = demo_data$TX_FRAUD_SCENARIO)
   test_data <- subset(test_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
   demo_data <- subset(demo_data, select = -c(TX_FRAUD, TX_FRAUD_SCENARIO))
   train_data_Fraud <- subset(train_data, select = c(TX_FRAUD, TERMINAL_ID, TX_AMOUNT, 
-                                                    x_terminal_id, 
-                                                    y_terminal_id, TX_HOUR, 
-                                                    TX_WEEKDAY, dist_cust_terminal, 
-                                                    tx_sum_same_day, amount_z_score))
+                                              x_terminal_id, 
+                                              y_terminal_id, TX_HOUR, 
+                                              TX_WEEKDAY, dist_cust_terminal, 
+                                              tx_sum_same_day, amount_z_score,
+                                              TX_Date))
+
   
   #___________________datenbalancierung (SMOTE)_____________________
   #vorerst nicht vorgesehen, eher bei random forest die wahr.
   #prozentsätze anpassen um die minderheitsklasse zu bevorzugen
   #evt noch die kosten FP, FN dabei beachten
   
-  saveRDS(train_data_Scenario, file = "99_DATA/train_data_Scenario.rds")
   saveRDS(train_data_Fraud, file = "99_DATA/train_data_Fraud.rds")
   saveRDS(test_data, file = "99_DATA/test_data.rds")
   saveRDS(test_labels, file = "99_DATA/test_labels.rds")
