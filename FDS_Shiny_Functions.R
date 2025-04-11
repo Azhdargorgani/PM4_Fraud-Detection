@@ -35,7 +35,7 @@ move_to_history <- function(history_path = "99_DATA/tx_history.rds",
 
 
 update_month <- function(){
-  month_time <<- reactiveVal(4)
+  month_time <- reactiveVal(5)
   output$month_sim <- renderUI({
     actionButton(
       inputId = "month_sim_button",
@@ -47,9 +47,10 @@ update_month <- function(){
   # Bei Klick: Monat +1
   observeEvent(input$month_sim_button, {
     new_val <- month_time() + 1
-    if (new_val > 12) new_val <- 1
+    if (new_val > 12) new_val <- 5
     month_time(new_val)
   })
+  return(month_time)
 }
 
 
