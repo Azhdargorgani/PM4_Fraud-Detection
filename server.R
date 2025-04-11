@@ -13,6 +13,7 @@ server <- function(input, output, session) {
   month_time <<- update_month()
   
   model_update_trigger <- reactiveVal(Sys.time())
+  history_update_trigger <- reactiveVal(Sys.time())
   training_mode <- reactiveVal(NULL)
   
   # 📌 Display model last update time
@@ -58,10 +59,27 @@ server <- function(input, output, session) {
       
       # Box anzeigen wie bei Retraining
       output$new_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
+      
+      output$new_model_best_tune <- renderText({
+        if (is.list(result) && !is.null(result$best_tune)) {
+          paste0("Model Information: mtry = ", result$best_tune$mtry)
+        } else {
+          "Model Information: not available"
+        }
+      })
+      
       shinyjs::show("box_new_model")
       
       # Live Metrics auch sofort aktualisieren
       output$live_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
+      
+      output$live_model_best_tune <- renderText({
+        if (!is.null(result$best_tune)) {
+          paste0("Model Information: mtry = ", result$best_tune$mtry)
+        } else {
+          ""
+        }
+      })
       
       # Last Update Triggern
       model_update_trigger(Sys.time())
@@ -78,13 +96,21 @@ server <- function(input, output, session) {
       training_mode("Retraining")
       output$update_status <- renderText(result$message)
       output$old_model_metrics <- renderTable({ format_df(result$old_model, 8) }, rownames = TRUE)
+      output$old_model_best_tune <- renderText({
+        paste0("Model Information: mtry = ", result$best_tune$mtry)
+      })
       output$new_model_metrics <- renderTable({ format_df(result$new_model, 8) }, rownames = TRUE)
+      output$new_model_best_tune <- renderText({
+        paste0("Model Information: mtry = ", result$best_tune$mtry)
+      })
       shinyjs::show("box_old_model")
       shinyjs::show("box_new_model")
     } else {
       output$update_status <- renderText(result)
       output$old_model_metrics <- renderTable(NULL)
       output$new_model_metrics <- renderTable(NULL)
+      output$old_model_best_tune <- renderText({ NULL })
+      output$new_model_best_tune <- renderText({ NULL })
     }
   })
 
@@ -108,6 +134,19 @@ server <- function(input, output, session) {
     }
   }, rownames = FALSE)
   
+  output$live_model_best_tune <- renderText({
+    model_path <- "80_MODELS/fraud_model.rds"
+    if (file.exists(model_path)) {
+      model <- readRDS(model_path)
+      if (!is.null(model$bestTune$mtry)) {
+        paste0("Model Information: mtry = ", model$bestTune$mtry)
+      } else {
+        "Model Information: not recorded"
+      }
+    } else {
+      ""
+    }
+  })
   
   # 📌 Accept new model
   observeEvent(input$accept_new_model, {
@@ -177,7 +216,32 @@ server <- function(input, output, session) {
   
   observeEvent(input$move_to_history, {
     rv$pending_data <- move_to_history(move_count = input$move_count)
+    history_update_trigger(Sys.time())  # Triggert das Neu-Laden der Historie
   })
+  
+  # 📌 Reactive: Lade Transaktionshistorie
+  history_data <- reactive({
+    history_update_trigger()  # Trigger beobachten
+    if (file.exists("99_DATA/tx_history.rds")) {
+      readRDS("99_DATA/tx_history.rds")
+    } else {
+      data.frame(Message = "No history data available.")
+    }
+  })
+  
+  
+  # 📌 Render DataTable für History
+  output$tx_history_table <- DT::renderDataTable({
+    datatable(history_data(),
+              options = list(
+                scrollX = TRUE,
+                pageLength = 10,
+                lengthMenu = c(10, 25, 50, 100)
+              ),
+              rownames = FALSE
+    )
+  })
+  
   
   # 📌 Dashboard
   #map

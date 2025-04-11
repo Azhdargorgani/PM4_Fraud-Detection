@@ -38,7 +38,7 @@ datenvorverarbeitung <- name <- function(variables) {
   
   tx<- subset(tx, select = c(-TX_DATETIME, -TX_TIME_SECONDS))
   tx$dist_cust_terminal <- sqrt((tx$x_customer_id - tx$x_terminal_id)^2 +
-                        (tx$y_customer_id - tx$y_terminal_id)^2)
+                                  (tx$y_customer_id - tx$y_terminal_id)^2)
   
   #---Nr. TX last 24hrs---
   tx$TX_Date <- as.Date(tx$TX_TIME)
@@ -95,6 +95,7 @@ datenvorverarbeitung <- name <- function(variables) {
                                               TX_WEEKDAY, dist_cust_terminal, 
                                               tx_sum_same_day, amount_z_score,
                                               TX_Date))
+
   
   #___________________datenbalancierung (SMOTE)_____________________
   #vorerst nicht vorgesehen, eher bei random forest die wahr.

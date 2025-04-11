@@ -68,22 +68,37 @@ ui <- dashboardPage(
               fluidRow(
                 box(title = "Old Model Metrics", width = 6, status = "warning",
                     id = "box_old_model",
-                    tableOutput("old_model_metrics")),
+                    tableOutput("old_model_metrics"),
+                    textOutput("old_model_best_tune")
+                    ),
                 box(title = "New Model Metrics", width = 6, status = "success",
                     id = "box_new_model",
-                    tableOutput("new_model_metrics")),
+                    tableOutput("new_model_metrics"),
+                    textOutput("new_model_best_tune")
+                    ),
                 box(title = "Live Model Metrics", width = 12, status = "primary",
-                    tableOutput("live_model_metrics"))
+                    tableOutput("live_model_metrics"),
+                    textOutput("live_model_best_tune")
+                    )
               )
       )
-      
       ,
-      
       # 📌 Data Historisation
       tabItem(tabName = "history",
-              h2("Transaction History")
-              
+              h2("Transaction History"),
+              fluidRow(
+                box(
+                  title = "Full Transaction History", 
+                  status = "primary", 
+                  solidHeader = TRUE, 
+                  width = 12,
+                  div(style = "height: 600px; overflow-y: scroll; overflow-x: auto;",
+                      DTOutput("tx_history_table")
+                  )
+                )
+              )
       ),
+      
       # 📌 Data Pending History
       tabItem(tabName = "history_pending",
               h2("Transactions Pending Review"),
