@@ -7,6 +7,8 @@ library(caret)
 library(shinyjs)
 library(lubridate)
 library(leaflet)
+library(shinyWidgets)
+
 
 ui <- dashboardPage(
   dashboardHeader(title = "FD-System",
@@ -45,7 +47,18 @@ ui <- dashboardPage(
                   fluidRow(
                     column(width = 4,
                            numericInput("rf_ntree", "Number of Trees (Random Forest)", 
-                                        value = 100, min = 10, max = 1000, step = 10)
+                                        value = 100, min = 10, max = 200, step = 10)
+                    ),
+                    column(width = 4,
+                           # 📌 Monatlicher Zeitraum für Retraining (als Monatsnamen)
+                           sliderTextInput(
+                             inputId = "retrain_range",
+                             label = "Zeitraum für Retraining",
+                             choices = month.name,
+                             selected = month.name[1:2],
+                             width = "100%"
+                           )
+   
                     ),
                     column(width = 4,
                            br(),
@@ -59,8 +72,11 @@ ui <- dashboardPage(
                            br(),
                            actionButton("train_initial_model", "Train Initial Model", icon = icon("play"))
                     )
-                  )
-              ),
+                  ),
+                  br(),
+            textOutput("selected_month_label")
+              )
+              ,
               
               textOutput("update_status"),
               textOutput("last_update"),
@@ -70,18 +86,19 @@ ui <- dashboardPage(
                     id = "box_old_model",
                     tableOutput("old_model_metrics"),
                     textOutput("old_model_best_tune")
-                    ),
+                ),
                 box(title = "New Model Metrics", width = 6, status = "success",
                     id = "box_new_model",
                     tableOutput("new_model_metrics"),
                     textOutput("new_model_best_tune")
-                    ),
+                ),
                 box(title = "Live Model Metrics", width = 12, status = "primary",
                     tableOutput("live_model_metrics"),
-                    textOutput("live_model_best_tune")
-                    )
+                    textOutput("live_model_best_tune") 
+                )
               )
       )
+      
       ,
       # 📌 Data Historisation
       tabItem(tabName = "history",
@@ -92,12 +109,11 @@ ui <- dashboardPage(
                   status = "primary", 
                   solidHeader = TRUE, 
                   width = 12,
-                  div(style = "height: 600px; overflow-y: scroll; overflow-x: auto;",
-                      DTOutput("tx_history_table")
+                  DTOutput("tx_history_table")
                   )
                 )
               )
-      ),
+      ,
       
       # 📌 Data Pending History
       tabItem(tabName = "history_pending",

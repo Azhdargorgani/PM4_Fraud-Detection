@@ -10,11 +10,82 @@ server <- function(input, output, session) {
   #Simulate time
   month_time <- 1
   #Monat anpassen wenn knopf in UI header gedrückt wird
-  month_time <<- update_month()
+  month_time <- reactiveVal(update_month())
   
+  # 📌 Reaktive Werte & Trigger
   model_update_trigger <- reactiveVal(Sys.time())
   history_update_trigger <- reactiveVal(Sys.time())
   training_mode <- reactiveVal(NULL)
+  model_info_live <- reactiveVal("Model Information: not available")
+  
+  
+  output$month_sim <- renderUI({
+    demo_data_path <- "99_DATA/demo_data.rds"
+    if (!file.exists(demo_data_path)) return(NULL)
+    demo_data <- readRDS(demo_data_path)
+    available_months <- sort(unique(lubridate::month(demo_data$TX_TIME)))
+    
+    # 📌 Setze initial sowohl month_sim als auch retrain_range auf den ersten Monat
+    min_month <- min(available_months)
+    
+    updateSliderTextInput(session, "retrain_range",
+                          choices = month.name[available_months],
+                          selected = month.name[c(min_month, min_month)])
+    
+    selectInput("month_sim", label = NULL,
+                choices = setNames(available_months, month.name[available_months]),
+                selected = min(available_months),
+                width = "150px")
+  
+  })
+  
+  observeEvent(input$month_sim, {
+    if (!is.null(input$month_sim)) {
+      month_time(as.integer(input$month_sim))
+      
+      demo_data_path <- "99_DATA/demo_data.rds"
+      if (!file.exists(demo_data_path)) return()
+      demo_data <- readRDS(demo_data_path)
+      available_months <- sort(unique(lubridate::month(demo_data$TX_TIME)))
+      filtered_months <- available_months[available_months <= input$month_sim]
+      
+      updateSliderTextInput(session, "retrain_range",
+                            choices = month.name[filtered_months],
+                            selected = month.name[c(which(filtered_months == min(filtered_months)),
+                                                    which(filtered_months == max(filtered_months)))])
+    }
+  })
+
+  # 🔁 Automatisch Modellinformationen laden bei Update
+  observe({
+    model_update_trigger()
+    if (file.exists("80_MODELS/fraud_model.rds")) {
+      model <- readRDS("80_MODELS/fraud_model.rds")
+      
+      mtry_val <- tryCatch(model$bestTune$mtry, error = function(e) NA)
+      
+      # ntree: Versuche direkt, sonst aus finalModel
+      ntree_val <- tryCatch({
+        if (!is.null(model$ntree)) {
+          model$ntree
+        } else if (!is.null(model$finalModel$ntree)) {
+          model$finalModel$ntree
+        } else {
+          NA
+        }
+      }, error = function(e) NA)
+      
+      model_info_live(paste0("Model Information: mtry = ", mtry_val, " | ntree = ", ntree_val))
+    } else {
+      model_info_live("Model Information: not available")
+    }
+  })
+  
+  #Model inforamtion
+  output$live_model_best_tune <- renderText({
+    model_info_live()
+  })
+
   
   # 📌 Display model last update time
   output$last_update <- renderText({
@@ -36,8 +107,12 @@ server <- function(input, output, session) {
   
   # 📌 Initial training
   observeEvent(input$train_initial_model, {
+    if (input$rf_ntree > 200) {
+      output$update_status <- renderText("⚠️ Maximal 200 Bäume erlaubt.")
+      return()
+    }
     if (file.exists("80_MODELS/fraud_model.rds")) {
-      output$update_status <- renderText("⚠️ Model already exists. Use Retrain instead.")
+      output$update_status <- renderText("\u26A0\uFE0F Model already exists. Use Retrain instead.")
       return()
     }
     
@@ -45,6 +120,7 @@ server <- function(input, output, session) {
     result <- train_model(mode = "initial", ntree = input$rf_ntree, month_t = month_time())
     output$update_status <- renderText(result)
     training_mode("Initial Training")
+    
     
     # Live-Metriken UND "New Model Metrics"-Box anzeigen
     if (file.exists("80_MODELS/fraud_model.rds") &&
@@ -59,29 +135,15 @@ server <- function(input, output, session) {
       
       # Box anzeigen wie bei Retraining
       output$new_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
-      
       output$new_model_best_tune <- renderText({
-        if (is.list(result) && !is.null(result$best_tune)) {
-          paste0("Model Information: mtry = ", result$best_tune$mtry)
-        } else {
-          "Model Information: not available"
-        }
+        mtry_val <- if (!is.null(result$best_tune$mtry)) result$best_tune$mtry else NA
+        paste0("Model Information: mtry = ", mtry_val, " | ntree = ", input$rf_ntree)
       })
       
       shinyjs::show("box_new_model")
       
       # Live Metrics auch sofort aktualisieren
       output$live_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
-      
-      output$live_model_best_tune <- renderText({
-        if (!is.null(result$best_tune)) {
-          paste0("Model Information: mtry = ", result$best_tune$mtry)
-        } else {
-          ""
-        }
-      })
-      
-      # Last Update Triggern
       model_update_trigger(Sys.time())
     }
   })
@@ -90,18 +152,36 @@ server <- function(input, output, session) {
   
   # 📌 Retraining
   observeEvent(input$retrain_model, {
-    result <- train_model(mode = "retrain", ntree = input$rf_ntree, month_t = month_time())
+    if (input$rf_ntree > 200) {
+      output$update_status <- renderText("⚠️ Maximal 200 Bäume erlaubt.")
+      return()
+    }
+    
+    #Ui Filter
+    month_range <- match(input$retrain_range, month.name)
+    start_month <- month_range[1]
+    end_month <- month_range[2]
+    
+    result <- train_model(
+      mode = "retrain",
+      ntree = input$rf_ntree,
+      month_t = end_month,
+      n_month = end_month - start_month + 1
+    )
+    
+    
     
     if (is.list(result)) {
       training_mode("Retraining")
       output$update_status <- renderText(result$message)
+      
       output$old_model_metrics <- renderTable({ format_df(result$old_model, 8) }, rownames = TRUE)
       output$old_model_best_tune <- renderText({
-        paste0("Model Information: mtry = ", result$best_tune$mtry)
+        paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", input$rf_ntree)
       })
       output$new_model_metrics <- renderTable({ format_df(result$new_model, 8) }, rownames = TRUE)
       output$new_model_best_tune <- renderText({
-        paste0("Model Information: mtry = ", result$best_tune$mtry)
+        paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", input$rf_ntree)
       })
       shinyjs::show("box_old_model")
       shinyjs::show("box_new_model")
@@ -134,19 +214,6 @@ server <- function(input, output, session) {
     }
   }, rownames = FALSE)
   
-  output$live_model_best_tune <- renderText({
-    model_path <- "80_MODELS/fraud_model.rds"
-    if (file.exists(model_path)) {
-      model <- readRDS(model_path)
-      if (!is.null(model$bestTune$mtry)) {
-        paste0("Model Information: mtry = ", model$bestTune$mtry)
-      } else {
-        "Model Information: not recorded"
-      }
-    } else {
-      ""
-    }
-  })
   
   # 📌 Accept new model
   observeEvent(input$accept_new_model, {
@@ -165,8 +232,8 @@ server <- function(input, output, session) {
       output$update_status <- renderText("⚠️ Kein neues Modell zum Übernehmen vorhanden. Bitte zuerst retrain ausführen.")
     }
   })
-  
-  
+
+
   # 📌 Predict Transaction Fraud (demo)
   observeEvent(
     input$sim_tx, {
@@ -242,6 +309,9 @@ server <- function(input, output, session) {
     )
   })
   
+  output$selected_month_label <- renderText({
+    paste("Ausgewählter Monat für Retraining:", month.name[as.integer(input$retrain_month)])
+  })
   
   # 📌 Dashboard
   #map
@@ -274,4 +344,6 @@ server <- function(input, output, session) {
       )
   })
 }
+
+
 
