@@ -56,9 +56,9 @@ ui <- dashboardPage(
                              label = "Zeitraum für Retraining",
                              choices = month.name,
                              selected = month.name[1:2],
-                             width = "100%"
+                             width = "100%",
+                             grid = TRUE 
                            )
-   
                     ),
                     column(width = 4,
                            br(),

@@ -25,36 +25,54 @@ server <- function(input, output, session) {
     demo_data <- readRDS(demo_data_path)
     available_months <- sort(unique(lubridate::month(demo_data$TX_TIME)))
     
-    # 📌 Setze initial sowohl month_sim als auch retrain_range auf den ersten Monat
     min_month <- min(available_months)
+    
+    # 📌 Neu: Nimm min_month + 1, falls vorhanden
+    default_month <- if ((min_month + 1) %in% available_months) min_month + 1 else min_month
     
     updateSliderTextInput(session, "retrain_range",
                           choices = month.name[available_months],
-                          selected = month.name[c(min_month, min_month)])
+                          selected = month.name[c(default_month - 1)])  # retrain = vorheriger Monat
     
     selectInput("month_sim", label = NULL,
                 choices = setNames(available_months, month.name[available_months]),
-                selected = min(available_months),
+                selected = default_month,
                 width = "150px")
-  
   })
+  
   
   observeEvent(input$month_sim, {
     if (!is.null(input$month_sim)) {
-      month_time(as.integer(input$month_sim))
+      selected_month <- as.integer(input$month_sim)
+      month_time(selected_month)
       
       demo_data_path <- "99_DATA/demo_data.rds"
       if (!file.exists(demo_data_path)) return()
       demo_data <- readRDS(demo_data_path)
-      available_months <- sort(unique(lubridate::month(demo_data$TX_TIME)))
-      filtered_months <- available_months[available_months <= input$month_sim]
       
-      updateSliderTextInput(session, "retrain_range",
-                            choices = month.name[filtered_months],
-                            selected = month.name[c(which(filtered_months == min(filtered_months)),
-                                                    which(filtered_months == max(filtered_months)))])
+      available_months <- sort(unique(lubridate::month(demo_data$TX_TIME)))
+      filtered_months <- available_months[available_months < selected_month]
+      
+      if (length(filtered_months) == 0) {
+        updateSliderTextInput(session, "retrain_range",
+                              choices = month.name[available_months],
+                              selected = month.name[selected_month])
+      } else {
+        end_month <- selected_month - 1
+        if (end_month < min(filtered_months)) {
+          end_month <- min(filtered_months)
+        }
+        
+        updateSliderTextInput(session, "retrain_range",
+                              choices = month.name[filtered_months],
+                              selected = c(
+                                month.name[min(filtered_months)],
+                                month.name[end_month]
+                              ))
+      }
     }
   })
+  
 
   # 🔁 Automatisch Modellinformationen laden bei Update
   observe({
