@@ -101,19 +101,20 @@ ui <- dashboardPage(
       
       ,
       # 📌 Data Historisation
-      tabItem(tabName = "history",
-              h2("Transaction History"),
-              fluidRow(
-                box(
-                  title = "Full Transaction History", 
-                  status = "primary", 
-                  solidHeader = TRUE, 
-                  width = 12,
-                  DTOutput("tx_history_table")
-                  )
-                )
-              )
-      ,
+      tabItem(
+        tabName = "history",
+        h2("Transaction History"),
+        fluidRow(
+          box(
+            title = "Full Transaction History",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 12,
+            DTOutput("tx_history_table")  # Gleich wie pending
+          )
+        )
+      ),
+  
       
       # 📌 Data Pending History
       tabItem(tabName = "history_pending",
