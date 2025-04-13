@@ -130,7 +130,6 @@ server <- function(input, output, session) {
   
   
   # 📌 Retraining
-  # 📌 Retraining
   observeEvent(input$retrain_model, {
     if (input$rf_ntree > 200) {
       output$update_status <- renderText("⚠️ Maximal 200 Bäume erlaubt.")
@@ -139,10 +138,10 @@ server <- function(input, output, session) {
     
     # 📌 Training period check
     month_range <- match(input$retrain_range, month.name)
-    if (any(is.na(month_range)) || length(month_range) < 2 || diff(month_range) < 1) {
+    if (any(is.na(month_range)) || length(month_range) < 1) {
       showModal(modalDialog(
         title = "⚠️ Invalid Training Period",
-        "Es sollte mehr Trainingsdaten geben als für Initial Training. Bitte mindestens zwei Monate auswählen.",
+        "Es sollte mehr Trainingsdaten geben als für Initial Training.",
         easyClose = TRUE,
         footer = NULL
       ))
@@ -164,13 +163,14 @@ server <- function(input, output, session) {
       output$update_status <- renderText(result$message)
       
       output$old_model_metrics <- renderTable({ format_df(result$old_model, 8) }, rownames = TRUE)
-      output$old_model_best_tune <- renderText({
-        paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", input$rf_ntree)
-      })
+      output$old_model_best_tune <- renderText(model_info_live())
+      
       output$new_model_metrics <- renderTable({ format_df(result$new_model, 8) }, rownames = TRUE)
       output$new_model_best_tune <- renderText({
-        paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", input$rf_ntree)
+        paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", result$ntree)
       })
+      
+      
       shinyjs::show("box_old_model")
       shinyjs::show("box_new_model")
     } else {
