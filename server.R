@@ -155,7 +155,7 @@ server <- function(input, output, session) {
       mode = "retrain",
       ntree = input$rf_ntree,
       month_t = end_month,
-      n_month = end_month - start_month + 1
+      n_month = end_month - start_month 
     )
     
     if (is.list(result)) {
