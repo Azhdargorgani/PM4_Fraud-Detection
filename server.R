@@ -75,8 +75,8 @@ server <- function(input, output, session) {
   # 📌 Observe and update retrain range when simulation month changes
   observe({
     req(month_time())
-    demo_data <- readRDS("99_DATA/demo_data.rds")
-    available_months <- sort(unique(lubridate::month(demo_data$TX_TIME)))
+    train_data <- readRDS("99_DATA/train_data_Fraud.rds")
+    available_months <- sort(unique(lubridate::month(train_data$TX_Date)))
     selected_month <- month_time()
     filtered <- available_months[available_months < selected_month]
     end_month <- max(filtered, na.rm = TRUE)
@@ -128,7 +128,7 @@ server <- function(input, output, session) {
     }
   })
   
-  
+
   # 📌 Retraining
   observeEvent(input$retrain_model, {
     if (input$rf_ntree > 200) {
@@ -137,11 +137,11 @@ server <- function(input, output, session) {
     }
     
     # 📌 Training period check
-    month_range <- match(input$retrain_range, month.name)
+    month_range <- sort(match(input$retrain_range, month.name))
     if (any(is.na(month_range)) || length(month_range) < 1) {
       showModal(modalDialog(
-        title = "⚠️ Invalid Training Period",
-        "Es sollte mehr Trainingsdaten geben als für Initial Training.",
+        title = "⚠️ Ungültiger Trainingszeitraum",
+        "Bitte mindestens einen gültigen Monat auswählen.",
         easyClose = TRUE,
         footer = NULL
       ))
@@ -149,13 +149,13 @@ server <- function(input, output, session) {
     }
     
     start_month <- month_range[1]
-    end_month <- month_range[2]
+    end_month <- month_range[length(month_range)]
     
     result <- train_model(
       mode = "retrain",
       ntree = input$rf_ntree,
-      month_t = end_month,
-      n_month = end_month - start_month 
+      start_month = start_month,
+      end_month = end_month
     )
     
     if (is.list(result)) {
@@ -170,7 +170,6 @@ server <- function(input, output, session) {
         paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", result$ntree)
       })
       
-      
       shinyjs::show("box_old_model")
       shinyjs::show("box_new_model")
     } else {
@@ -181,6 +180,7 @@ server <- function(input, output, session) {
       output$new_model_best_tune <- renderText({ NULL })
     }
   })
+  
   
   
   # 📌 Accept new model
