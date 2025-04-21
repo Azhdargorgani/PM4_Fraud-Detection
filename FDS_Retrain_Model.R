@@ -40,8 +40,10 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
     
     return(list(
       message = "✅ Initial model trained and saved as fraud_model.rds",
-      best_tune = model$bestTune
+      best_tune = model$bestTune,
+      ntree = ntree
     ))
+    
   }
   
   if (mode == "retrain") {
@@ -75,9 +77,11 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
       return(list(
         message = "✅ Model retrained and evaluated.",
         best_tune = new_model$bestTune,
+        ntree = ntree,
         old_model = old_metrics,
         new_model = new_metrics
       ))
+      
     } else {
       return(list(
         message = "✅ Model retrained. No test data available for evaluation.",
