@@ -6,6 +6,11 @@ save_live_metrics <- function(
     test_labels_path = "99_DATA/test_labels.rds",
     output_path = "70_Performance_Hist/metrics.rds"
 ) {
+  # Reset bei Neustart im Mai (Monat 5)
+  if (current_month == 5 && file.exists(output_path)) {
+    file.remove(output_path)
+  }
+  
   #Falls ein file nicht existiert abfangen
   if (!file.exists(model_path) || !file.exists(test_data_path) || !file.exists(test_labels_path)) {
     return(NULL)

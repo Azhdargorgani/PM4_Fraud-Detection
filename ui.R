@@ -36,7 +36,7 @@ ui <- dashboardPage(
               
               fluidRow(
                 box(title = "Fraud Locations", solidHeader = F, width = 5,status = "primary",
-                    leafletOutput("fraud_map", height = 350),
+                    leafletOutput("fraud_map", height = 450),
                     br(),
                     DTOutput("transaction_table")
                 ),
@@ -55,7 +55,7 @@ ui <- dashboardPage(
               
               #Trend diegramm anz frauds
               box(
-                title = "Test Frauds per Month", 
+                title = "Trend Frauds per Month", 
                 width = 12, 
                 status = "danger", 
                 solidHeader = TRUE,

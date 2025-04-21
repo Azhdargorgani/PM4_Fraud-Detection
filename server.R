@@ -8,7 +8,6 @@ server <- function(input, output, session) {
   source("FDS_live_model_metrics.R", local = TRUE)
   
   # 📌 Meta System Functions----------------------------------------------------
-  
   #Monat anpassen wenn knopf in UI header gedrückt wird
   month_time <- update_month()
   
@@ -365,37 +364,6 @@ server <- function(input, output, session) {
   
 
   
-  # Plot der preformance trends 
-  output$metric_trend_plot <- renderPlot({
-    req(input$selected_metric)
-    
-    if (!file.exists("70_Performance_Hist/metrics.rds")) return()
-    
-    df <- readRDS("70_Performance_Hist/metrics.rds")
-    df <- df[order(df$Month), ]
-    
-    metric <- input$selected_metric
-    values <- as.numeric(df[[metric]])
-    df$MonthLabel <- factor(month.name[df$Month], levels = month.name)
-    
-    # Y-Achse dynamisch zoomen, aber begrenzt zwischen 0.99 und 1.0
-    ymin <- min(values) - 0.002
-    ymax <- max(values) + 0.002
-    if (ymin < 0.95) ymin <- 0.99
-    if (ymax > 1.0) ymax <- 1.0
-    
-    plot(months <- df$Month, values,
-         type = "l",
-         col = "darkblue",
-         lwd = 2,
-         ylim = c(ymin, ymax),
-         xlab = "Month",
-         ylab = metric,
-         xaxt = "n",
-         main = paste(metric, "Trend Over Time"))
-    axis(1, at = df$Month, labels = month.name[months])
-  })
-  
   #Anzahl Fraude dieser Monat (Sim daten nicht train daten)
   pending_data <- if (file.exists("99_DATA/pending_history.rds")) {
     reactiveFileReader(
@@ -429,15 +397,48 @@ server <- function(input, output, session) {
     )
   })
   
+  # Plot der preformance trends 
+  metrics_data <- reactiveFileReader(
+    intervalMillis = 2000,
+    session = session,
+    filePath = "70_Performance_Hist/metrics.rds",
+    readFunc = readRDS
+  )
+  
+  output$metric_trend_plot <- renderPlot({
+    req(input$selected_metric)
+    
+    df <- metrics_data()
+    df <- df[order(df$Month), ]
+    
+    metric <- input$selected_metric
+    values <- as.numeric(df[[metric]])
+    df$MonthLabel <- factor(month.name[df$Month], levels = month.name)
+    
+    ymin <- min(values) - 0.002
+    ymax <- max(values) + 0.002
+    if (ymin < 0.95) ymin <- 0.99
+    if (ymax > 1.0) ymax <- 1.0
+    
+    plot(months <- df$Month, values,
+         type = "o",
+         col = "darkblue",
+         lwd = 2,
+         ylim = c(ymin, ymax),
+         xlab = "Month",
+         ylab = metric,
+         xaxt = "n",
+         main = paste(metric, "Trend Over Time"))
+    axis(1, at = df$Month, labels = month.name[months])
+  })
+  
   # Fraud in test data plot
   output$fraud_count_plot <- renderPlot({
-    if (!file.exists("70_Performance_Hist/metrics.rds")) return()
-    
-    df <- readRDS("70_Performance_Hist/metrics.rds")
+    df <- metrics_data()
     df <- df[order(df$Month), ]
     
     barplot(
-      height = df$n_Frauds * 10.1,        #mal 10.1 damit es nach mehr aussieht evt entfernen
+      height = df$n_Frauds * 10.1,
       names.arg = month.name[df$Month],
       col = "darkred",
       border = NA,
