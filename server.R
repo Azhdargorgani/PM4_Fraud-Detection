@@ -257,8 +257,8 @@ server <- function(input, output, session) {
     leaflet(data) %>%
       addProviderTiles("CartoDB.Positron") %>%
       addCircleMarkers(
-        lng = ~y_terminal_id,
-        lat = ~x_terminal_id,
+        lng = ~x_terminal_id,
+        lat = ~y_terminal_id,
         radius = 6,
         color = "red",
         stroke = FALSE,
