@@ -10,6 +10,8 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
                         n_month = 1) {
   
   mode <- match.arg(mode)
+  
+  #Filter data to months we want to use for training
   train_data <- readRDS(train_data_path)
   train_data <- train_data[month(train_data$TX_Date) < month_t & month(train_data$TX_Date) >= (month_t-n_month),]
   train_data <- subset(train_data, select = -c(TX_Date))
@@ -18,6 +20,7 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
     return("❌ Error: Training data not found.")
   }
   
+  #Initial training-------------------------------------------------------------
   if (mode == "initial") {
     if (file.exists(model_path)) {
       return("⚠️ Model already exists. Please use Retrain instead.")
@@ -46,6 +49,7 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
     
   }
   
+  #Retrain----------------------------------------------------------------------
   if (mode == "retrain") {
     if (!file.exists(model_path)) {
       return("❌ Error: No existing model found. Please train an initial model first.")
@@ -91,15 +95,3 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-#___________________Model 2 (Fraud Scenario) retraining__________

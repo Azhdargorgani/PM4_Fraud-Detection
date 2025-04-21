@@ -5,8 +5,9 @@ server <- function(input, output, session) {
   source("FDS_predict_tx.R", local = TRUE)
   source("FDS_DEMO_SIM.R", local = TRUE)
   source("FDS_Shiny_Functions.R", local = TRUE)
+  source("FDS_live_model_metrics.R", local = TRUE)
   
-  # 📌 Meta System Functions
+  # 📌 Meta System Functions----------------------------------------------------
   
   #Monat anpassen wenn knopf in UI header gedrückt wird
   month_time <- update_month()
@@ -14,6 +15,7 @@ server <- function(input, output, session) {
   # 📌 Reactive values and triggers
   model_update_trigger <- reactiveVal(Sys.time())
   history_update_trigger <- reactiveVal(Sys.time())
+  pending_update_trigger <- reactiveVal(Sys.time())
   training_mode <- reactiveVal(NULL)
   model_info_live <- reactiveVal("Model Information: not available")
   
@@ -24,7 +26,7 @@ server <- function(input, output, session) {
     })
     return(df)
   }
-
+  # 📌 Model Information--------------------------------------------------------
   # 📌 Display header: Initial Training or Retraining
   output$new_model_header <- renderUI(
     h4(training_mode())
@@ -42,14 +44,24 @@ server <- function(input, output, session) {
       file.exists("99_DATA/test_data.rds"),
       file.exists("99_DATA/test_labels.rds")
     )
-    format_df(
-      evaluate_model(
-        "80_MODELS/fraud_model.rds",
-        "99_DATA/test_data.rds",
-        "99_DATA/test_labels.rds"
-      ), 8
+    
+    metrics <- evaluate_model(
+      "80_MODELS/fraud_model.rds",
+      "99_DATA/test_data.rds",
+      "99_DATA/test_labels.rds"
     )
-  }, rownames = FALSE)
+    
+    values <- as.numeric(metrics[1, c("Accuracy", "Precision", "Recall", "F1_Score")])
+    formatted <- format(round(values, 4), decimal.mark = ",", nsmall = 4)
+    
+    data.frame(
+      Metric = c("Accuracy", "Precision", "Recall", "F1 Score"),
+      Value = formatted,
+      row.names = NULL,
+      stringsAsFactors = FALSE
+    )
+  })
+  
   
   # 📌 Display last update timestamp of the live model
   output$last_update <- renderText({
@@ -75,14 +87,14 @@ server <- function(input, output, session) {
   # 📌 Observe and update retrain range when simulation month changes
   observe({
     req(month_time())
-    demo_data <- readRDS("99_DATA/demo_data.rds")
-    available_months <- sort(unique(lubridate::month(demo_data$TX_TIME)))
-    selected_month <- month_time()
-    filtered <- available_months[available_months < selected_month]
-    end_month <- max(filtered, na.rm = TRUE)
-    updateSliderTextInput(session, "retrain_range",
-                          choices = month.name[if (length(filtered) > 0) filtered else available_months],
-                          selected = month.name[if (length(filtered) > 0) c(min(filtered), end_month) else selected_month])
+    train_data <- readRDS("99_DATA/train_data_Fraud.rds")
+    available_months <- sort(unique(lubridate::month(train_data$TX_Date)))
+    
+    retrain_choices <- month.name[available_months[available_months < month_time()]]
+    
+    updateSelectInput(session, "retrain_start_month",
+                      choices = retrain_choices,
+                      selected = head(retrain_choices, 1))  # Select first month so we have most data by default
   })
   
   # 📌 Initial training
@@ -135,27 +147,13 @@ server <- function(input, output, session) {
       output$update_status <- renderText("⚠️ Maximal 200 Bäume erlaubt.")
       return()
     }
-    
-    # 📌 Training period check
-    month_range <- match(input$retrain_range, month.name)
-    if (any(is.na(month_range)) || length(month_range) < 1) {
-      showModal(modalDialog(
-        title = "⚠️ Invalid Training Period",
-        "Es sollte mehr Trainingsdaten geben als für Initial Training.",
-        easyClose = TRUE,
-        footer = NULL
-      ))
-      return()
-    }
-    
-    start_month <- month_range[1]
-    end_month <- month_range[2]
+    start_month <- match(input$retrain_start_month, month.name)
     
     result <- train_model(
       mode = "retrain",
       ntree = input$rf_ntree,
-      month_t = end_month,
-      n_month = end_month - start_month 
+      month_t = month_time(),
+      n_month = month_time() - start_month 
     )
     
     if (is.list(result)) {
@@ -201,93 +199,120 @@ server <- function(input, output, session) {
     }
   })
 
+  # 📌 #Live Metriken des Aktuellen Modells
+  output$model_info_metrics_box <- renderUI({
+    output$model_info_metrics_table <- renderTable({
+      if (!file.exists("70_Performance_Hist/metrics.rds")) {
+        return(data.frame(Message = "No metrics available yet."))
+      }
+      
+      df <- readRDS("70_Performance_Hist/metrics.rds")
+      current_month <- month_time()
+      row <- df[df$Month == current_month, ]
+      
+      if (nrow(row) == 0) {
+        return(data.frame(Message = "No metrics found for current month."))
+      }
+      
+      # Format output nicely as vertical key-value table
+      values <- as.numeric(row[1, c("Accuracy", "Precision", "Recall", "F1_Score"), drop = TRUE])
+      
+      data.frame(
+        Metric = c("Accuracy", "Precision", "Recall", "F1 Score"),
+        Value = format(round(values, 6), decimal.mark = ",", nsmall = 4),
+        row.names = NULL,
+        stringsAsFactors = FALSE
+      )
+    })
+  })
 
-  # 📌 Predict Transaction Fraud (demo)
-  observeEvent(
-    input$sim_tx, {
-      predict_transactions(demo(month_t = month_time()))
-    }
-  )
+  # 📌 Transaction pending Review-----------------------------------------------------
   
   # 📌 Historical Data pending table (editable)
-  rv <- reactiveValues(data = {
+  rv <- reactiveValues(pending_data = {
     if (file.exists("99_DATA/pending_history.rds")) {
       readRDS("99_DATA/pending_history.rds")
     } else {data.frame(Message = "No transactions yet")  
     }
   })
   
+  #das es automatisch aktualisiert wird
+  observe({
+    invalidateLater(2000, session)  # alle 2 Sekunden checken
+    if (file.exists("99_DATA/pending_history.rds")) {
+      rv$pending_data <- readRDS("99_DATA/pending_history.rds")
+    }
+  })
+  
   output$transaction_table <- DT::renderDataTable({
-    datatable(rv$pending_data, editable = "cell", options = list(
-      scrollY = "400px",
-      scrollX = "400px"
-    ))
+    datatable(
+      rv$pending_data,
+      editable = list(
+        target = "cell",
+        columns = which(names(rv$pending_data) == "ManualLabel")  # Nur diese Spalte
+      ),
+      options = list(
+        scrollY = "400px",
+        scrollX = "400px"
+      )
+    )
   }, server = FALSE)
   
   # Capture and save table edits
   observeEvent(input$transaction_table_cell_edit, {
     info <- input$transaction_table_cell_edit
     row <- info$row
-    col <- info$col
+    colname <- names(rv$pending_data)[info$col]
     new_value <- info$value
     
-    if (col == which(names(rv$pending_data) == "Prediction") && 
-        new_value %in% c("Fraud", "no Fraud")){
-      rv$pending_data[row, col] <- new_value  
-      saveRDS(rv$pending_data, "99_DATA/pending_history.rds") 
-    }
-  })
-  
-  # Refresh table when button is clicked
-  observeEvent(input$refresh_pend_history, {
-    rv$pending_data <- {
-      if (file.exists("99_DATA/pending_history.rds")) {
-        readRDS("99_DATA/pending_history.rds")
-      } else {
-        data.frame(Message = "No transactions yet")
-      }
+    if (colname == "ManualLabel" && new_value %in% c("Fraud", "no Fraud")) {
+      rv$pending_data[row, "ManualLabel"] <- new_value
+      saveRDS(rv$pending_data, "99_DATA/pending_history.rds")
     }
   })
   
   observeEvent(input$move_to_history, {
     rv$pending_data <- move_to_history(move_count = input$move_count)
-    history_update_trigger(Sys.time())  # Triggert das Neu-Laden der Historie
+    print("📦 Moved to history")
   })
-  
+
+# 📌 Transaction History-----------------------------------------------------
   # 📌 Reactive: Lade Transaktionshistorie
-  history_data <- reactive({
-    history_update_trigger()  # Trigger beobachten
-    if (file.exists("99_DATA/tx_history.rds")) {
-      readRDS("99_DATA/tx_history.rds")
-    } else {
-      data.frame(Message = "No history data available.")
-    }
-  })
+  if (!file.exists("99_DATA/tx_history.rds")) {
+    saveRDS(data.frame(), "99_DATA/tx_history.rds")
+  }
   
+  # Dann reaktiv lesen mit Beobachtung
+  history_data <- reactiveFileReader(
+    intervalMillis = 2000,
+    session = session,
+    filePath = "99_DATA/tx_history.rds",
+    readFunc = readRDS
+  )
   
   # 📌 Render DataTable für History
   output$tx_history_table <- DT::renderDataTable({
     datatable(
       history_data(),
       options = list(
-        scrollY = "650px",           # 🔧 nur Tabelle scrollt
-        scrollX = TRUE,              # 🔧 horizontales Scrollen aktivieren
-        scrollCollapse = TRUE,       # 🔧 Container bleibt fix
-        pageLength = 100,            # Optional: viele Zeilen anzeigen
-        dom = 't',                   # Optional: nur Tabelle (kein Suchfeld/Pager)
-        lengthMenu = c(10, 25, 50, 100)
-      ),
-      rownames = FALSE,
-      class = 'compact stripe hover'
+        scrollY = "540px",
+        scrollX = "400px"
+      )
     )
   })
   
   
-  # 📌 Dashboard
-  #map
+  # 📌 Dashboard---------------------------------------------------------------
+  # 📌 Predict Transaction Fraud (demo)
+  observeEvent(
+    input$sim_tx, {
+      predict_transactions(demo(month_t = month_time()))
+    }
+  )
+  # 📌 map
   fraud_data <- reactive({
     req(rv$pending_data)
-    rv$pending_data[rv$pending_data$Prediction == "Fraud", ]
+    rv$pending_data[rv$pending_data$ManualLabel == "Fraud", ]
   })
   
   # Leaflet-Karte anzeigen
@@ -313,6 +338,115 @@ server <- function(input, output, session) {
         )
       )
   })
+  
+  #Metriken Anzeigen
+  output$dashboard_metrics_box <- renderUI({
+    req(file.exists("70_Performance_Hist/metrics.rds"))
+    metrics <- readRDS("70_Performance_Hist/metrics.rds")
+    
+    # Aktueller Monat
+    current_month <- month_time()
+    
+    # Zeile für aktuellen Monat herausfiltern
+    row <- metrics[metrics$Month == current_month, ]
+    
+    if (nrow(row) == 0) {
+      return(tags$div("No metrics for this month"))
+    }
+    
+    # Mehrere valueBox nebeneinander anzeigen
+    fluidRow(
+      valueBox(paste0(row$Accuracy * 100, "%"), "Accuracy", color = "blue", icon = icon("check")),
+      valueBox(paste0(row$Precision * 100, "%"), "Precision", color = "blue", icon = icon("bullseye")),
+      valueBox(paste0(row$Recall * 100, "%"), "Recall", color = "blue", icon = icon("sync-alt")),
+      valueBox(paste0(row$F1_Score * 100, "%"), "F1 Score", color = "blue", icon = icon("star"))
+    )
+  })
+  
+
+  
+  # Plot der preformance trends 
+  output$metric_trend_plot <- renderPlot({
+    req(input$selected_metric)
+    
+    if (!file.exists("70_Performance_Hist/metrics.rds")) return()
+    
+    df <- readRDS("70_Performance_Hist/metrics.rds")
+    df <- df[order(df$Month), ]
+    
+    metric <- input$selected_metric
+    values <- as.numeric(df[[metric]])
+    df$MonthLabel <- factor(month.name[df$Month], levels = month.name)
+    
+    # Y-Achse dynamisch zoomen, aber begrenzt zwischen 0.99 und 1.0
+    ymin <- min(values) - 0.002
+    ymax <- max(values) + 0.002
+    if (ymin < 0.95) ymin <- 0.99
+    if (ymax > 1.0) ymax <- 1.0
+    
+    plot(months <- df$Month, values,
+         type = "l",
+         col = "darkblue",
+         lwd = 2,
+         ylim = c(ymin, ymax),
+         xlab = "Month",
+         ylab = metric,
+         xaxt = "n",
+         main = paste(metric, "Trend Over Time"))
+    axis(1, at = df$Month, labels = month.name[months])
+  })
+  
+  #Anzahl Fraude dieser Monat (Sim daten nicht train daten)
+  pending_data <- if (file.exists("99_DATA/pending_history.rds")) {
+    reactiveFileReader(
+      intervalMillis = 2000,
+      session = session,
+      filePath = "99_DATA/pending_history.rds",
+      readFunc = readRDS
+    )
+  } else {
+    reactive({ data.frame() })  # leeres DataFrame zurückgeben
+  }
+  
+  sim_fraud_count <- reactive({
+    # Daten laden
+    pending <- pending_data()
+    history <- history_data()
+
+    all_data <- rbind(pending, history)
+    # Filtern: aktueller Monat & "Fraud"
+    filtered <- all_data[lubridate::month(all_data$TX_Date) == month_time() & all_data$ManualLabel == "Fraud",]
+    
+    nrow(filtered)
+  })
+  # Anzahl Fraud sim
+  output$monthly_fraud_box <- renderUI({
+    valueBox(
+      value = sim_fraud_count(),
+      subtitle = paste("Number of Frauds Today"),
+      icon = icon("exclamation-triangle"),
+      color = "red"
+    )
+  })
+  
+  # Fraud in test data plot
+  output$fraud_count_plot <- renderPlot({
+    if (!file.exists("70_Performance_Hist/metrics.rds")) return()
+    
+    df <- readRDS("70_Performance_Hist/metrics.rds")
+    df <- df[order(df$Month), ]
+    
+    barplot(
+      height = df$n_Frauds * 10.1,        #mal 10.1 damit es nach mehr aussieht evt entfernen
+      names.arg = month.name[df$Month],
+      col = "darkred",
+      border = NA,
+      main = "Trend Number of Frauds",
+      ylab = "Count",
+      las = 2
+    )
+  })
+  
 }
 
 

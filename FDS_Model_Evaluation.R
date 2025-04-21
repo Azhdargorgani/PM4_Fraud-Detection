@@ -32,10 +32,10 @@ evaluate_model <- function(model_path = "80_MODELS/fraud_model.rds",
   
   # Extrahiere gewünschte Metriken als DataFrame
   metrics_df <- data.frame(
-    Accuracy = cm$overall["Accuracy"],
-    Precision = cm$byClass["Precision"],
-    Recall = cm$byClass["Sensitivity"],
-    F1_Score = cm$byClass["F1"]
+    Accuracy = unname(cm$overall["Accuracy"]),
+    Precision = unname(cm$byClass["Precision"]),
+    Recall = unname(cm$byClass["Sensitivity"]),
+    F1_Score = unname(cm$byClass["F1"])
   )
   
   return(metrics_df)
