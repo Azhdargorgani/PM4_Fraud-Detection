@@ -88,12 +88,12 @@ server <- function(input, output, session) {
     req(month_time())
     train_data <- readRDS("99_DATA/train_data_Fraud.rds")
     available_months <- sort(unique(lubridate::month(train_data$TX_Date)))
-    
-    retrain_choices <- month.name[available_months[available_months < month_time()]]
-    
-    updateSelectInput(session, "retrain_start_month",
-                      choices = retrain_choices,
-                      selected = head(retrain_choices, 1))  # Select first month so we have most data by default
+    selected_month <- month_time()
+    filtered <- available_months[available_months < selected_month]
+    end_month <- max(filtered, na.rm = TRUE)
+    updateSliderTextInput(session, "retrain_range",
+                          choices = month.name[if (length(filtered) > 0) filtered else available_months],
+                          selected = month.name[if (length(filtered) > 0) c(min(filtered), end_month) else selected_month])
   })
   
   # 📌 Initial training
@@ -139,20 +139,36 @@ server <- function(input, output, session) {
     }
   })
   
-  
+
   # 📌 Retraining
   observeEvent(input$retrain_model, {
     if (input$rf_ntree > 200) {
       output$update_status <- renderText("⚠️ Maximal 200 Bäume erlaubt.")
       return()
     }
-    start_month <- match(input$retrain_start_month, month.name)
+    
+    # 📌 Training period check
+    month_range <- sort(match(input$retrain_range, month.name))
+    if (any(is.na(month_range)) || length(month_range) < 1) {
+      showModal(modalDialog(
+        title = "⚠️ Ungültiger Trainingszeitraum",
+        "Bitte mindestens einen gültigen Monat auswählen.",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      return()
+    }
+    
+    start_month <- month_range[1]
+    end_month <- month_range[length(month_range)]
+
     
     result <- train_model(
       mode = "retrain",
       ntree = input$rf_ntree,
-      month_t = month_time(),
-      n_month = month_time() - start_month 
+      start_month = start_month,
+      end_month = end_month
+
     )
     
     if (is.list(result)) {
@@ -167,7 +183,6 @@ server <- function(input, output, session) {
         paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", result$ntree)
       })
       
-      
       shinyjs::show("box_old_model")
       shinyjs::show("box_new_model")
     } else {
@@ -178,6 +193,7 @@ server <- function(input, output, session) {
       output$new_model_best_tune <- renderText({ NULL })
     }
   })
+  
   
   
   # 📌 Accept new model
