@@ -161,14 +161,12 @@ server <- function(input, output, session) {
     
     start_month <- month_range[1]
     end_month <- month_range[length(month_range)]
-
     
     result <- train_model(
       mode = "retrain",
       ntree = input$rf_ntree,
       start_month = start_month,
-      end_month = end_month
-
+      end_month = end_month 
     )
     
     if (is.list(result)) {
