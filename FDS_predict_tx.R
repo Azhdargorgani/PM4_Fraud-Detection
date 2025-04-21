@@ -9,7 +9,12 @@ predict_transactions <- function(transactions,
   
   # Make predictions
   transactions$Prediction <- predict(rf_model, newdata = transactions, type = "raw")
+  
+  # ManualLabel initial setzen
+  transactions$ManualLabel <- transactions$Prediction
+  
   print(transactions$Prediction)
+  
   # Append predictions to pending history
   if (file.exists(pending_history_path)) {
     pending_data <- readRDS(pending_history_path)

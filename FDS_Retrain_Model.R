@@ -36,6 +36,7 @@ train_model <- function(mode = c("initial", "retrain"),
     return("❌ Retraining abgebrochen: Nur eine Klasse (z. B. nur 'No Fraud') im Trainingszeitraum.")
   }
   
+  #Initial training-------------------------------------------------------------
   if (mode == "initial") {
     if (file.exists(model_path)) {
       return("⚠️ Model already exists. Please use Retrain instead.")
@@ -62,6 +63,7 @@ train_model <- function(mode = c("initial", "retrain"),
     ))
   }
   
+  #Retrain----------------------------------------------------------------------
   if (mode == "retrain") {
     if (!file.exists(model_path)) {
       return("❌ Error: No existing model found. Please train an initial model first.")
@@ -104,15 +106,3 @@ train_model <- function(mode = c("initial", "retrain"),
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-#___________________Model 2 (Fraud Scenario) retraining__________

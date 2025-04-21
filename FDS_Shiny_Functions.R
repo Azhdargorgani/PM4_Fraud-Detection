@@ -1,21 +1,23 @@
-
 # 📌 Funktion zum Verschieben von Daten nach History
-move_to_history <- function(history_path = "99_DATA/tx_history.rds",
+  move_to_history <- function(history_path = "99_DATA/tx_history.rds",
                             pending_path = "99_DATA/pending_history.rds", 
                             move_count) {
-  # 📌 Lade die Historie
+  
+  # 📌 Lade Pending-Daten
   if (file.exists(pending_path)) {
     pending_data <- readRDS(pending_path)
-  } else {
+  }else {
     warning("No Pending Transactions")
+    return(data.frame())
   }
-  
+      
   # 📌 Lade die Historie
   if (file.exists(history_path)) {
     history_data <- readRDS(history_path)
   } else {
-    history_data <- data.frame()
+    history_data <- pending_data[0, ]
   }
+  
   
   # 📌 Extrahiere die ersten `num_to_move` Einträge
   entries_to_move <- pending_data[1:move_count, ]
@@ -49,6 +51,9 @@ update_month <- function(){
     new_val <- month_time() + 1
     if (new_val > 12) new_val <- 5
     month_time(new_val)
+    
+    #Ablegen der Neuen Metriken des Monats für Dashboard
+    save_live_metrics(month_time())
   })
   return(month_time)
 }
