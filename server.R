@@ -38,6 +38,8 @@ server <- function(input, output, session) {
   
   # 📌 Display metrics of the current live model
   output$live_model_metrics <- renderTable({
+    model_update_trigger()
+    
     req(
       file.exists("80_MODELS/fraud_model.rds"),
       file.exists("99_DATA/test_data.rds"),
@@ -98,8 +100,8 @@ server <- function(input, output, session) {
   
   # 📌 Initial training
   observeEvent(input$train_initial_model, {
-    if (input$rf_ntree > 200) {
-      output$update_status <- renderText("⚠️ Maximal 200 Bäume erlaubt.")
+    if (input$rf_ntree > 1000) {
+      output$update_status <- renderText("⚠️ Maximal1000 Bäume erlaubt.")
       return()
     }
     if (file.exists("80_MODELS/fraud_model.rds")) {
@@ -107,10 +109,28 @@ server <- function(input, output, session) {
       return()
     }
     
+    # 👉 Monatsbereich extrahieren
+    month_range <- sort(match(input$retrain_range, month.name))
+    if (any(is.na(month_range)) || length(month_range) < 1) {
+      showModal(modalDialog(
+        title = "⚠️ Ungültiger Trainingszeitraum",
+        "Bitte mindestens einen gültigen Monat auswählen.",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      return()
+    }
+    
+    start_month <- month_range[1]
+    end_month <- month_range[length(month_range)]
+    
     # Modell trainieren (Initial)
-    result <- train_model(mode = "initial", ntree = input$rf_ntree, month_t = month_time())
-    output$update_status <- renderText(result)
-    training_mode("Initial Training")
+    result <- train_model(
+      mode = "initial",
+      ntree = input$rf_ntree,
+      start_month = start_month,
+      end_month = end_month
+    )
     
     
     # Live-Metriken UND "New Model Metrics"-Box anzeigen
@@ -142,8 +162,8 @@ server <- function(input, output, session) {
 
   # 📌 Retraining
   observeEvent(input$retrain_model, {
-    if (input$rf_ntree > 200) {
-      output$update_status <- renderText("⚠️ Maximal 200 Bäume erlaubt.")
+    if (input$rf_ntree > 1000) {
+      output$update_status <- renderText("⚠️ Maximal1000 Bäume erlaubt.")
       return()
     }
     
