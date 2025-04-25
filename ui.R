@@ -32,39 +32,38 @@ ui <- dashboardPage(
       # 📌 Dashboard Tab
       tabItem(tabName = "dashboard",
               h2("Overview"),
-              actionButton("sim_tx", "simulate_transaction"),
+              actionButton("sim_tx", "Simulate Transaction"),
               
               fluidRow(
-                box(title = "Fraud Locations", solidHeader = F, width = 5,status = "primary",
+                box(title = "Fraud Locations", solidHeader = FALSE, width = 5, status = "primary",
                     leafletOutput("fraud_map", height = 450),
                     br(),
                     DTOutput("transaction_table")
                 ),
-              box(title = "Real Time Model Performance", width = 7, status = "primary",
+                box(title = "Real Time Model Performance", width = 7, status = "primary",
                     uiOutput("dashboard_metrics_box")
                 ),
-              uiOutput("monthly_fraud_box"),
-              
-              #Liniendiagramme
-              box(title = "Metric Trend Over Time", width = 12, status = "primary", solidHeader = TRUE,
-                  selectInput("selected_metric", "Select metric:",
-                              choices = c("Accuracy", "Precision", "Recall", "F1_Score"),
-                              selected = "Accuracy"),
-                  plotOutput("metric_trend_plot", height = 300)
-              ),
-              
-              #Trend diegramm anz frauds
-              box(
-                title = "Trend Frauds per Month", 
-                width = 12, 
-                status = "danger", 
-                solidHeader = TRUE,
-                plotOutput("fraud_count_plot", height = 300)
-              ),
+                uiOutput("monthly_fraud_box"),
+                
+                #Liniendiagramme
+                box(title = "Metric Trend Over Time", width = 12, status = "primary", solidHeader = TRUE,
+                    selectInput("selected_metric", "Select Metric:",
+                                choices = c("Accuracy", "Precision", "Recall", "F1_Score"),
+                                selected = "Accuracy"),
+                    plotOutput("metric_trend_plot", height = 300)
+                ),
+                
+                #Trend diegramm anz frauds
+                box(
+                  title = "Trend: Frauds per Month", 
+                  width = 12, 
+                  status = "danger", 
+                  solidHeader = TRUE,
+                  plotOutput("fraud_count_plot", height = 300)
+                ),
               )
       ),
       
-      # 📌 Model Retraining Tab
       # 📌 Model Retraining Tab
       tabItem(tabName = "model_information",
               h2("Model Information"),
@@ -80,7 +79,7 @@ ui <- dashboardPage(
                            # 📌 Monatlicher Zeitraum für Retraining (als Monatsnamen)
                            sliderTextInput(
                              inputId = "retrain_range",
-                             label = "Zeitraum für Retraining",
+                             label = "Retraining Period",
                              choices = month.name,
                              selected = month.name[1:2],
                              width = "100%",
@@ -102,8 +101,7 @@ ui <- dashboardPage(
                   ),
                   br(),
                   textOutput("selected_month_label")
-              )
-              ,
+              ),
               
               textOutput("update_status"),
               textOutput("last_update"),
@@ -141,8 +139,8 @@ ui <- dashboardPage(
       tabItem(tabName = "history_pending",
               h2("Transactions Pending Review"),
               fluidRow(
-                box(sliderInput("move_count", "Anzahl der Einträge verschieben:", min = 1, max = 50, value = 10),
-                    actionButton("move_to_history", "Verschiebe in Historie", icon = icon("arrow-right"))
+                box(sliderInput("move_count", "Number of entries to move:", min = 1, max = 50, value = 10),
+                    actionButton("move_to_history", "Approve Transactions", icon = icon("arrow-right"))
                 ),
                 box(title = "Pending Transactions", status = "primary", solidHeader = TRUE, width = 12,
                     DTOutput("transaction_table")

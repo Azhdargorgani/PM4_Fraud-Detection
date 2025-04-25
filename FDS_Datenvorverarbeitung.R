@@ -1,32 +1,32 @@
 library(lubridate)
-datenvorverarbeitung <- name <- function(variables) {
-  #____________________Daten Vorverarbeiten__________________________
-  # Daten Einlesen / erste vorverarbeitung
-  terminals <- read.table("terminals.csv", sep = ",", header = T)
+
+datenvorverarbeitung <- function(variables) {
+  # ------------------- Read and preprocess data ------------------- #
+  terminals <- read.table("terminals.csv", sep = ",", header = TRUE)
   terminals <- subset(terminals, select = -X)
   
-  customers <- read.table("customers.csv", sep = ",", header = T)
+  customers <- read.table("customers.csv", sep = ",", header = TRUE)
   customers <- subset(customers, select = -X)
   
-  transactions <- read.table("transactions.csv", sep = ",", header = T)
+  transactions <- read.table("transactions.csv", sep = ",", header = TRUE)
   transactions <- subset(transactions, select = -X)
   
   transactions$TX_FRAUD <- factor(transactions$TX_FRAUD, 
-                                  levels = c(0,1),
+                                  levels = c(0, 1),
                                   labels = c("No Fraud", "Fraud"))
   transactions$TX_FRAUD_SCENARIO <- factor(transactions$TX_FRAUD_SCENARIO,
                                            levels = c(0, 1, 2, 3))
-  transactions <- transactions[sample(1:nrow(transactions), 30000),] #TEMP!!!!!!!!!!!!!!!!!!!!!
+  transactions <- transactions[sample(1:nrow(transactions), 30000),]  # TEMP SAMPLE!!!!
   
-  #Merge data frames to one
-  tx<-merge(customers, transactions, 
-            by = intersect(names(customers), names(transactions)), 
-            all.y = T, all.x = F)
-  tx<-merge(tx, terminals, 
-            by = intersect(names(tx), names(terminals)), 
-            all.x = T, all.y = F)
+  # Merge data frames into one
+  tx <- merge(customers, transactions, 
+              by = intersect(names(customers), names(transactions)), 
+              all.y = TRUE, all.x = FALSE)
+  tx <- merge(tx, terminals, 
+              by = intersect(names(tx), names(terminals)), 
+              all.x = TRUE, all.y = FALSE)
   
-  #___________________feature engineering___________________________
+  # ------------------- Feature engineering ------------------- #
   # ---DATE TIME weekday...---
   library("lubridate")
   tx$TX_TIME <- as.POSIXct(tx$TX_DATETIME, format = "%Y-%m-%d %H:%M:%S")
@@ -80,7 +80,7 @@ datenvorverarbeitung <- name <- function(variables) {
   rm(split_index)
   rm(demo_index)
   
-  #Zielvariabeln von Testdata entfernen
+  # Remove target variables from test/demo
   test_labels <- data.frame(TX_FRAUD = test_data$TX_FRAUD,
                             TX_FRAUD_SCENARIO = test_data$TX_FRAUD_SCENARIO,
                             TRANSACTION_ID = test_data$TRANSACTION_ID)

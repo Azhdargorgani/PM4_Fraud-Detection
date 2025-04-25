@@ -101,20 +101,20 @@ server <- function(input, output, session) {
   # 📌 Initial training
   observeEvent(input$train_initial_model, {
     if (input$rf_ntree > 1000) {
-      output$update_status <- renderText("⚠️ Maximal1000 Bäume erlaubt.")
+      output$update_status <- renderText("⚠️ Maximum 1000 trees allowed.")
       return()
     }
     if (file.exists("80_MODELS/fraud_model.rds")) {
-      output$update_status <- renderText("\u26A0\uFE0F Model already exists. Use Retrain instead.")
+      output$update_status <- renderText("⚠️ Model already exists. Use Retrain instead.")
       return()
     }
     
-    # 👉 Monatsbereich extrahieren
+    # 👉 Extract month range
     month_range <- sort(match(input$retrain_range, month.name))
     if (any(is.na(month_range)) || length(month_range) < 1) {
       showModal(modalDialog(
-        title = "⚠️ Ungültiger Trainingszeitraum",
-        "Bitte mindestens einen gültigen Monat auswählen.",
+        title = "⚠️ Invalid training period",
+        "Please select at least one valid month.",
         easyClose = TRUE,
         footer = NULL
       ))
@@ -124,7 +124,7 @@ server <- function(input, output, session) {
     start_month <- month_range[1]
     end_month <- month_range[length(month_range)]
     
-    # Modell trainieren (Initial)
+    # Train model (Initial)
     result <- train_model(
       mode = "initial",
       ntree = input$rf_ntree,
@@ -132,8 +132,7 @@ server <- function(input, output, session) {
       end_month = end_month
     )
     
-    
-    # Live-Metriken UND "New Model Metrics"-Box anzeigen
+    # Show live metrics AND "New Model Metrics" box
     if (file.exists("80_MODELS/fraud_model.rds") &&
         file.exists("99_DATA/test_data.rds") &&
         file.exists("99_DATA/test_labels.rds")) {
@@ -144,7 +143,7 @@ server <- function(input, output, session) {
       
       formatted_metrics <- format_df(metrics, 8)
       
-      # Box anzeigen wie bei Retraining
+      # Show box same as retraining
       output$new_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
       output$new_model_best_tune <- renderText({
         mtry_val <- if (!is.null(result$best_tune$mtry)) result$best_tune$mtry else NA
@@ -153,17 +152,16 @@ server <- function(input, output, session) {
       
       shinyjs::show("box_new_model")
       
-      # Live Metrics auch sofort aktualisieren
+      # Update live metrics immediately
       output$live_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
       model_update_trigger(Sys.time())
     }
   })
   
-
   # 📌 Retraining
   observeEvent(input$retrain_model, {
     if (input$rf_ntree > 1000) {
-      output$update_status <- renderText("⚠️ Maximal1000 Bäume erlaubt.")
+      output$update_status <- renderText("⚠️ Maximum 1000 trees allowed.")
       return()
     }
     
@@ -171,8 +169,8 @@ server <- function(input, output, session) {
     month_range <- sort(match(input$retrain_range, month.name))
     if (any(is.na(month_range)) || length(month_range) < 1) {
       showModal(modalDialog(
-        title = "⚠️ Ungültiger Trainingszeitraum",
-        "Bitte mindestens einen gültigen Monat auswählen.",
+        title = "⚠️ Invalid training period",
+        "Please select at least one valid month.",
         easyClose = TRUE,
         footer = NULL
       ))
@@ -213,7 +211,6 @@ server <- function(input, output, session) {
   })
   
   
-  
   # 📌 Accept new model
   observeEvent(input$accept_new_model, {
     new_model_path <- "80_MODELS/new_fraud_model.rds"
@@ -222,13 +219,13 @@ server <- function(input, output, session) {
     if (file.exists(new_model_path)) {
       file.copy(from = new_model_path, to = final_model_path, overwrite = TRUE)
       
-      output$update_status <- renderText("✅ Neues Modell übernommen und ist jetzt live.")
+      output$update_status <- renderText("✅ New model accepted and is now live.")
       shinyjs::hide("box_old_model")
       shinyjs::hide("box_new_model")
       training_mode(NULL)
-      model_update_trigger(Sys.time())  # Triggert Live Metrics
+      model_update_trigger(Sys.time())  # Trigger live metrics update
     } else {
-      output$update_status <- renderText("⚠️ Kein neues Modell zum Übernehmen vorhanden. Bitte zuerst retrain ausführen.")
+      output$update_status <- renderText("⚠️ No new model to accept. Please run retrain first.")
     }
   })
 
@@ -372,22 +369,22 @@ server <- function(input, output, session) {
       )
   })
   
-  #Metriken Anzeigen
+  # 📌 Display dashboard metrics
   output$dashboard_metrics_box <- renderUI({
     req(file.exists("70_Performance_Hist/metrics.rds"))
     metrics <- readRDS("70_Performance_Hist/metrics.rds")
     
-    # Aktueller Monat
+    # Current month
     current_month <- month_time()
     
-    # Zeile für aktuellen Monat herausfiltern
+    # Filter row for current month
     row <- metrics[metrics$Month == current_month, ]
     
     if (nrow(row) == 0) {
       return(tags$div("No metrics for this month"))
     }
     
-    # Mehrere valueBox nebeneinander anzeigen
+    # Display multiple valueBoxes side by side
     fluidRow(
       valueBox(paste0(row$Accuracy * 100, "%"), "Accuracy", color = "blue", icon = icon("check")),
       valueBox(paste0(row$Precision * 100, "%"), "Precision", color = "blue", icon = icon("bullseye")),
@@ -396,9 +393,7 @@ server <- function(input, output, session) {
     )
   })
   
-
-  
-  #Anzahl Fraude dieser Monat (Sim daten nicht train daten)
+  # 📌 Number of frauds this month (simulated data, not training data)
   pending_data <- if (file.exists("99_DATA/pending_history.rds")) {
     reactiveFileReader(
       intervalMillis = 2000,
@@ -407,21 +402,22 @@ server <- function(input, output, session) {
       readFunc = readRDS
     )
   } else {
-    reactive({ data.frame() })  # leeres DataFrame zurückgeben
+    reactive({ data.frame() })  # return empty DataFrame
   }
   
   sim_fraud_count <- reactive({
-    # Daten laden
+    # Load data
     pending <- pending_data()
     history <- history_data()
-
+    
     all_data <- rbind(pending, history)
-    # Filtern: aktueller Monat & "Fraud"
+    # Filter: current month & "Fraud"
     filtered <- all_data[lubridate::month(all_data$TX_Date) == month_time() & all_data$ManualLabel == "Fraud",]
     
     nrow(filtered)
   })
-  # Anzahl Fraud sim
+  
+  # 📌 Number of frauds in current month (simulated)
   output$monthly_fraud_box <- renderUI({
     valueBox(
       value = sim_fraud_count(),
@@ -431,7 +427,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Plot der preformance trends 
+  # 📌 Plot performance trends
   metrics_data <- reactiveFileReader(
     intervalMillis = 2000,
     session = session,
@@ -466,7 +462,7 @@ server <- function(input, output, session) {
     axis(1, at = df$Month, labels = month.name[months])
   })
   
-  # Fraud in test data plot
+  # 📌 Plot number of frauds in test data
   output$fraud_count_plot <- renderPlot({
     df <- metrics_data()
     df <- df[order(df$Month), ]
@@ -481,8 +477,6 @@ server <- function(input, output, session) {
       las = 2
     )
   })
-  
 }
-
 
 
