@@ -1,39 +1,62 @@
-# 📌 Funktion zum Verschieben von Daten nach History
-  move_to_history <- function(history_path = "99_DATA/tx_history.rds",
+# 📌 Function to move data to history
+move_to_history <- function(history_path = "99_DATA/tx_history.rds",
                             pending_path = "99_DATA/pending_history.rds", 
                             move_count) {
   
-  # 📌 Lade Pending-Daten
+  # 📌 Load pending data
   if (file.exists(pending_path)) {
     pending_data <- readRDS(pending_path)
-  }else {
+  } else {
     warning("No Pending Transactions")
     return(data.frame())
   }
-      
-  # 📌 Lade die Historie
+  
+  # 📌 Load transaction history
   if (file.exists(history_path)) {
     history_data <- readRDS(history_path)
   } else {
     history_data <- pending_data[0, ]
   }
   
-  
-  # 📌 Extrahiere die ersten `num_to_move` Einträge
+  # 📌 Extract the first `num_to_move` entries
   entries_to_move <- pending_data[1:move_count, ]
   
-  # 📌 Entferne die verschobenen Einträge aus der Pending-Tabelle
+  # 📌 Remove the moved entries from the pending table
   pending_data <- pending_data[-(1:move_count), ]
   
-  # 📌 Füge die verschobenen Einträge zur Historie hinzu und sortiere nach TX_DATE
+  # 📌 Append moved entries to history and sort by TX_DATE
   history_data <- rbind(history_data, entries_to_move)
   history_data <- history_data[order(history_data$TX_TIME, na.last = TRUE), ]
   
-  # 📌 Speichere die aktualisierten Tabellen
+  # 📌 Save the updated tables
   saveRDS(history_data, history_path)
   saveRDS(pending_data, pending_path)
   return(pending_data)
 }
+
+
+update_month <- function(){
+  month_time <- reactiveVal(5)
+  output$month_sim <- renderUI({
+    actionButton(
+      inputId = "month_sim_button",
+      label = paste(month.name[month_time()]),
+      style = "font-size: 16px; background-color: transparent; 
+               border: none; color: white; margin-top: 15px;"
+    )
+  })
+  # On click: increment month by 1
+  observeEvent(input$month_sim_button, {
+    new_val <- month_time() + 1
+    if (new_val > 12) new_val <- 5
+    month_time(new_val)
+    
+    # Store new month's metrics for dashboard
+    save_live_metrics(month_time())
+  })
+  return(month_time)
+}
+
 
 
 update_month <- function(){

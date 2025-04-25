@@ -1,7 +1,7 @@
-
+# --------------------------- Predict new transactions --------------------------- #
 predict_transactions <- function(transactions, 
-                                model_path = "80_MODELS/fraud_model.rds", 
-                                pending_history_path = "99_DATA/pending_history.rds") {
+                                 model_path = "80_MODELS/fraud_model.rds", 
+                                 pending_history_path = "99_DATA/pending_history.rds") {
   if (!file.exists(model_path)) {
     stop("Error: Model does not exist!")
   }
@@ -10,7 +10,7 @@ predict_transactions <- function(transactions,
   # Make predictions
   transactions$Prediction <- predict(rf_model, newdata = transactions, type = "raw")
   
-  # ManualLabel initial setzen
+  # Initialize ManualLabel with prediction
   transactions$ManualLabel <- transactions$Prediction
   
   print(transactions$Prediction)
@@ -23,6 +23,6 @@ predict_transactions <- function(transactions,
     pending_data <- transactions
   }
   saveRDS(pending_data, file = pending_history_path)
-  return("✅ Transaction predicted and stored pending review")}
-
+  return("✅ Transaction predicted and stored pending review")
+}
 
