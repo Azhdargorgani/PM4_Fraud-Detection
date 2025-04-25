@@ -65,16 +65,27 @@ ui <- dashboardPage(
       ),
       
       # 📌 Model Retraining Tab
+      # 📌 Model Retraining Tab
       tabItem(tabName = "model_information",
               h2("Model Information"),
               
+              # 🧩 Model Training Control Panel
               box(title = "Model Training Settings", width = 12, status = "primary", solidHeader = TRUE,
                   fluidRow(
                     column(width = 4,
-                           numericInput("rf_ntree", "Number of Trees (Random Forest)", value = 100, min = 10, max = 200, step = 10)
+                           numericInput("rf_ntree", "Number of Trees (Random Forest)", 
+                                        value = 100, min = 10, max = 1000, step = 10)
                     ),
                     column(width = 4,
-                           selectInput("retrain_start_month", "Start Month for Retraining (End month is fixed)", choices = NULL)
+                           # 📌 Monatlicher Zeitraum für Retraining (als Monatsnamen)
+                           sliderTextInput(
+                             inputId = "retrain_range",
+                             label = "Zeitraum für Retraining",
+                             choices = month.name,
+                             selected = month.name[1:2],
+                             width = "100%",
+                             grid = TRUE 
+                           )
                     ),
                     column(width = 4,
                            br(),
@@ -91,7 +102,8 @@ ui <- dashboardPage(
                   ),
                   br(),
                   textOutput("selected_month_label")
-              ),
+              )
+              ,
               
               textOutput("update_status"),
               textOutput("last_update"),
