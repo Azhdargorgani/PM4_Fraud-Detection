@@ -108,18 +108,18 @@ ui <- dashboardPage(
               
               fluidRow(
                 box(title = "Old Model Test Metrics", width = 6, status = "warning", id = "box_old_model",
-                    tableOutput("old_model_metrics"),
+                    htmlOutput("old_model_metrics"),
                     textOutput("old_model_best_tune")
                 ),
                 box(title = "New Model Test Metrics", width = 6, status = "success", id = "box_new_model",
-                    tableOutput("new_model_metrics"),
+                    htmlOutput("new_model_metrics"),
                     textOutput("new_model_best_tune")
                 ),
-                box(title = "Live Model Test Metrics", width = 6, status = "primary", height = 270,
+                box(title = "Live Model Test Metrics", width = 6, status = "primary", height = 200,
                     tableOutput("live_model_metrics"),
                     textOutput("live_model_best_tune")
                 ),
-                box(title = "Real Time Model Performance", width = 6, status = "primary", height = 270,
+                box(title = "Real Time Model Performance", width = 6, status = "primary", height = 200,
                     tableOutput("model_info_metrics_box")
                 )
               )

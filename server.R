@@ -17,6 +17,7 @@ server <- function(input, output, session) {
   pending_update_trigger <- reactiveVal(Sys.time())
   training_mode <- reactiveVal(NULL)
   model_info_live <- reactiveVal("Model Information: not available")
+  model_result <- reactiveVal(NULL)
   
   # 📌 Helper: format numeric values
   format_df <- function(df, digits = 4) {
@@ -38,13 +39,9 @@ server <- function(input, output, session) {
   
   # 📌 Display metrics of the current live model
   output$live_model_metrics <- renderTable({
-    model_update_trigger()
-    
-    req(
-      file.exists("80_MODELS/fraud_model.rds"),
-      file.exists("99_DATA/test_data.rds"),
-      file.exists("99_DATA/test_labels.rds")
-    )
+    req(file.exists("80_MODELS/fraud_model.rds"),
+        file.exists("99_DATA/test_data.rds"),
+        file.exists("99_DATA/test_labels.rds"))
     
     metrics <- evaluate_model(
       "80_MODELS/fraud_model.rds",
@@ -52,16 +49,9 @@ server <- function(input, output, session) {
       "99_DATA/test_labels.rds"
     )
     
-    values <- as.numeric(metrics[1, c("Accuracy", "Precision", "Recall", "F1_Score")])
-    formatted <- format(round(values, 4), decimal.mark = ",", nsmall = 4)
-    
-    data.frame(
-      Metric = c("Accuracy", "Precision", "Recall", "F1 Score"),
-      Value = formatted,
-      row.names = NULL,
-      stringsAsFactors = FALSE
-    )
-  })
+    rownames(metrics) <- NULL  # <-- entfernt die automatische „1“
+    format_df(metrics, 4)
+  }, rownames = FALSE)
   
   
   # 📌 Display last update timestamp of the live model
@@ -213,22 +203,91 @@ server <- function(input, output, session) {
       training_mode("Retraining")
       output$update_status <- renderText(result$message)
       
-      output$old_model_metrics <- renderTable({ format_df(result$old_model, 4) }, rownames = TRUE)
-      output$old_model_best_tune <- renderText(model_info_live())
+      # 📌 OLD MODEL METRICS mit Farbvergleich
+      output$old_model_metrics <- renderUI({
+        old <- result$old_model
+        new <- result$new_model
+        
+        html <- "<table class='table table-bordered table-sm' style='width:100%; font-size:14px;'>"
+        col_names <- colnames(old)
+        html <- paste0(html, "<thead><tr>",
+                       paste0("<th>", col_names, "</th>", collapse = ""),
+                       "</tr></thead><tbody>")
+        
+        for (i in rownames(old)) {
+          html <- paste0(html, "<tr>")
+          for (j in seq_along(col_names)) {
+            old_val <- round(old[i, j], 4)
+            new_val <- round(new[i, j], 4)
+            
+            color <- if (old_val > new_val) {
+              "#d4edda"
+            } else if (old_val < new_val) {
+              "#f8d7da"
+            } else {
+              "#ffffff"
+            }
+            
+            html <- paste0(html, "<td style='background-color:", color, "'>", old_val, "</td>")
+          }
+          html <- paste0(html, "</tr>")
+        }
+        
+        html <- paste0(html, "</tbody></table>")
+        HTML(html)
+      })
       
-      output$new_model_metrics <- renderTable({ format_df(result$new_model, 4) }, rownames = TRUE)
+      # 📌 NEW MODEL METRICS mit Farbvergleich
+      output$new_model_metrics <- renderUI({
+        old <- result$old_model
+        new <- result$new_model
+        
+        html <- "<table class='table table-bordered table-sm' style='width:100%; font-size:14px;'>"
+        col_names <- colnames(new)
+        html <- paste0(html, "<thead><tr>",
+                       paste0("<th>", col_names, "</th>", collapse = ""),
+                       "</tr></thead><tbody>")
+        
+        for (i in rownames(new)) {
+          html <- paste0(html, "<tr>")
+          for (j in seq_along(col_names)) {
+            new_val <- round(new[i, j], 4)
+            old_val <- round(old[i, j], 4)
+            
+            color <- if (new_val > old_val) {
+              "#d4edda"
+            } else if (new_val < old_val) {
+              "#f8d7da"
+            } else {
+              "#ffffff"
+            }
+            
+            html <- paste0(html, "<td style='background-color:", color, "'>", new_val, "</td>")
+          }
+          html <- paste0(html, "</tr>")
+        }
+        
+        html <- paste0(html, "</tbody></table>")
+        HTML(html)
+      })
+      
+      # 📌 Zusatzinfos anzeigen
+      output$old_model_best_tune <- renderText(model_info_live())
       output$new_model_best_tune <- renderText({
         paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", result$ntree)
       })
       
+      # 📌 Boxen sichtbar machen
       shinyjs::show("box_old_model")
       shinyjs::show("box_new_model")
+      
     } else {
+      # 📌 Fehlerbehandlung
       output$update_status <- renderText(result)
       output$old_model_metrics <- renderTable(NULL)
       output$new_model_metrics <- renderTable(NULL)
-      output$old_model_best_tune <- renderText({ NULL })
-      output$new_model_best_tune <- renderText({ NULL })
+      output$old_model_best_tune <- renderText(NULL)
+      output$new_model_best_tune <- renderText(NULL)
     }
   })
   
@@ -253,31 +312,18 @@ server <- function(input, output, session) {
   })
 
   # 📌 #Live Metriken des Aktuellen Modells
-  output$model_info_metrics_box <- renderUI({
-    output$model_info_metrics_table <- renderTable({
-      if (!file.exists("70_Performance_Hist/metrics.rds")) {
-        return(data.frame(Message = "No metrics available yet."))
-      }
-      
-      df <- readRDS("70_Performance_Hist/metrics.rds")
-      current_month <- month_time()
-      row <- df[df$Month == current_month, ]
-      
-      if (nrow(row) == 0) {
-        return(data.frame(Message = "No metrics found for current month."))
-      }
-      
-      # Format output nicely as vertical key-value table
-      values <- as.numeric(row[1, c("Accuracy", "Precision", "Recall", "F1_Score"), drop = TRUE])
-      
-      data.frame(
-        Metric = c("Accuracy", "Precision", "Recall", "F1 Score"),
-        Value = format(round(values, 6), decimal.mark = ",", nsmall = 4),
-        row.names = NULL,
-        stringsAsFactors = FALSE
-      )
-    })
-  })
+  output$model_info_metrics_box <- renderTable({
+    req(file.exists("70_Performance_Hist/metrics.rds"))
+    
+    df <- readRDS("70_Performance_Hist/metrics.rds")
+    current_month <- month_time()
+    row <- df[df$Month == current_month, ]
+    
+    if (nrow(row) == 0) return(data.frame(Message = "No metrics for current month."))
+    
+    metrics <- row[, c("Accuracy", "Precision", "Recall", "F1_Score"), drop = FALSE]
+    format_df(metrics, 4)
+  }, rownames = FALSE)
 
   # 📌 Transaction pending Review-----------------------------------------------------
   
