@@ -27,6 +27,36 @@ ui <- dashboardPage(
   
   dashboardBody(
     useShinyjs(),
+    tags$head(
+      tags$style(HTML("
+      .main-sidebar {
+        position: fixed;
+        overflow: visible;
+      }
+
+      .main-header {
+        position: fixed;
+        width: 100%;
+        z-index: 999;
+      }
+
+      .content-wrapper, .right-side {
+        margin-left: 230px;
+        margin-top: 50px;
+        z-index: 1;
+        position: relative;
+      }
+
+      .main-header .logo, .main-header .navbar {
+        height: 50px;
+      }
+
+      /* Leaflet map fix: verhindert Überlappung über Header */
+      .leaflet {
+        z-index: 0 !important;
+      }
+    "))
+    ),
     tabItems(
       
       # 📌 Dashboard Tab
