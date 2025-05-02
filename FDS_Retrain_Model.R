@@ -42,7 +42,7 @@ train_model <- function(mode = c("initial", "retrain"),
     
     # CV + model training with mtry tuning
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
-    tune_grid <- expand.grid(mtry = c(2, 5, 10, 13, 24))  # Example values
+    tune_grid <- expand.grid(mtry = c(2, 5, 10))  # Example values
     
     model <- train(
       TX_FRAUD ~ .,
@@ -71,7 +71,7 @@ train_model <- function(mode = c("initial", "retrain"),
     
     # Retrain (with 10-fold cv)
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
-    tune_grid <- expand.grid(mtry = c(2, 5, 10, 13, 24))
+    tune_grid <- expand.grid(mtry = c(2, 5, 10))
     
     new_model <- train(
       TX_FRAUD ~ .,

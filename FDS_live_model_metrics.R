@@ -48,6 +48,8 @@ save_live_metrics <- function(
     Precision = round(metrics["Precision"], 4),
     Recall = round(metrics["Recall"], 4),
     F1_Score = round(metrics["F1_Score"], 4),
+    AUC = round(metrics["AUC"], 4),
+    LogLoss = round(metrics["LogLoss"], 4),
     n_Frauds = test_frauds
   )
   

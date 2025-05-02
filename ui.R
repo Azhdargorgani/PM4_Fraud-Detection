@@ -8,6 +8,7 @@ library(shinyjs)
 library(lubridate)
 library(leaflet)
 library(shinyWidgets)
+library(ggplot2)
 
 ui <- dashboardPage(
   dashboardHeader(title = "FD-System",
@@ -40,15 +41,39 @@ ui <- dashboardPage(
                     br(),
                     DTOutput("transaction_table")
                 ),
-                box(title = "Real Time Model Performance", width = 7, status = "primary",
-                    uiOutput("dashboard_metrics_box")
-                ),
                 uiOutput("monthly_fraud_box"),
                 
+                box(
+                  title = tagList(
+                    span("Real Time Model Performance"),
+                    actionButton("toggle_metric_settings", label = NULL, icon = icon("gear"),
+                                 class = "btn btn-default btn-sm pull-right")
+                  ),
+                  width = 12,
+                  status = "primary",
+                  solidHeader = TRUE,
+                  collapsible = TRUE,
+                  
+                  # ⬇️ Einstellungen
+                  conditionalPanel(
+                    condition = "input.toggle_metric_settings % 2 == 1",
+                    checkboxGroupInput(
+                      inputId = "metrics_to_show",
+                      label = "Select metrics to display:",
+                      choices = c("Accuracy", "Precision", "Recall", "F1_Score", "AUC", "LogLoss"),
+                      selected = c("Accuracy", "Precision", "Recall", "F1_Score"),
+                      inline = TRUE
+                    )
+                  ),
+                  
+                  uiOutput("all_metrics_and_boxes")
+                ),
+                
+
                 #Liniendiagramme
                 box(title = "Metric Trend Over Time", width = 12, status = "primary", solidHeader = TRUE,
                     selectInput("selected_metric", "Select Metric:",
-                                choices = c("Accuracy", "Precision", "Recall", "F1_Score"),
+                                choices = c("Accuracy", "Precision", "Recall", "F1_Score", "AUC", "LogLoss"),
                                 selected = "Accuracy"),
                     plotOutput("metric_trend_plot", height = 300)
                 ),
@@ -88,15 +113,15 @@ ui <- dashboardPage(
                     ),
                     column(width = 4,
                            br(),
-                           actionButton("retrain_model", "Retrain Model with New Data", icon = icon("redo"))
+                           actionButton("retrain_model", "Retrain Model with New Data")
                     ),
                     column(width = 4,
                            br(),
-                           actionButton("accept_new_model", "Accept New Model", icon = icon("check"))
+                           actionButton("accept_new_model", "Accept New Model")
                     ),
                     column(width = 4,
                            br(),
-                           actionButton("train_initial_model", "Train Initial Model", icon = icon("play"))
+                           actionButton("train_initial_model", "Train Initial Model")
                     )
                   ),
                   br(),
@@ -115,14 +140,32 @@ ui <- dashboardPage(
                     tableOutput("new_model_metrics"),
                     textOutput("new_model_best_tune")
                 ),
-                box(title = "Live Model Test Metrics", width = 6, status = "primary", height = 270,
+                box(title = "Model Test Metrics", width = 6, status = "primary", height = 270,
                     tableOutput("live_model_metrics"),
                     textOutput("live_model_best_tune")
                 ),
                 box(title = "Real Time Model Performance", width = 6, status = "primary", height = 270,
                     tableOutput("model_info_metrics_box")
+                ),
+                box(
+                  title = "Feature Importance – Random Forest",
+                  width = 6,
+                  status = "primary",
+                  solidHeader = TRUE,
+                  plotOutput("feature_importance_plot", height = 400)
+                ),
+                box(
+                  title = "Random Forest Error Over Trees",
+                  width = 6,
+                  status = "primary",
+                  solidHeader = TRUE,
+                  plotOutput("rf_error_plot", height = 400)
                 )
+                
+      
               )
+            
+              
       ),
       
       # 📌 Data Historisation
