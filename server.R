@@ -19,7 +19,7 @@ server <- function(input, output, session) {
   model_info_live <- reactiveVal("Model Information: not available")
   
   # 📌 Helper: format numeric values
-  format_df <- function(df, digits = 8) {
+  format_df <- function(df, digits = 4) {
     df[] <- lapply(df, function(x) {
       if (is.numeric(x)) format(round(x, digits), nsmall = digits) else x
     })
@@ -141,7 +141,7 @@ server <- function(input, output, session) {
                                 "99_DATA/test_data.rds", 
                                 "99_DATA/test_labels.rds")
       
-      formatted_metrics <- format_df(metrics, 8)
+      formatted_metrics <- format_df(metrics, 4)
       
       # Show box same as retraining
       output$new_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
@@ -160,6 +160,28 @@ server <- function(input, output, session) {
   
   # 📌 Retraining
   observeEvent(input$retrain_model, {
+    observe({
+      val <- model_result()
+      req(val)
+      
+      new_vals <- tryCatch(as.numeric(val$new_model[1:4, 1]), error = function(e) rep(NA, 4))
+      old_vals <- tryCatch(as.numeric(val$old_model[1:4, 1]), error = function(e) rep(NA, 4))
+      diffs <- new_vals - old_vals
+      
+      status_class <- if (any(is.na(diffs))) {
+        "box-default"
+      } else if (all(diffs > 0)) {
+        "box-success"
+      } else if (all(diffs <= 0)) {
+        "box-danger"
+      } else {
+        "box-warning"
+      }
+      
+      shinyjs::runjs("$('#box_new_model').removeClass('box-success box-danger box-warning box-default');")
+      shinyjs::runjs(sprintf("$('#box_new_model').addClass('%s');", status_class))
+    })
+    
     if (input$rf_ntree > 1000) {
       output$update_status <- renderText("⚠️ Maximum 1000 trees allowed.")
       return()
@@ -191,10 +213,10 @@ server <- function(input, output, session) {
       training_mode("Retraining")
       output$update_status <- renderText(result$message)
       
-      output$old_model_metrics <- renderTable({ format_df(result$old_model, 8) }, rownames = TRUE)
+      output$old_model_metrics <- renderTable({ format_df(result$old_model, 4) }, rownames = TRUE)
       output$old_model_best_tune <- renderText(model_info_live())
       
-      output$new_model_metrics <- renderTable({ format_df(result$new_model, 8) }, rownames = TRUE)
+      output$new_model_metrics <- renderTable({ format_df(result$new_model, 4) }, rownames = TRUE)
       output$new_model_best_tune <- renderText({
         paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", result$ntree)
       })
@@ -209,6 +231,7 @@ server <- function(input, output, session) {
       output$new_model_best_tune <- renderText({ NULL })
     }
   })
+  
   
   
   # 📌 Accept new model
@@ -441,6 +464,9 @@ server <- function(input, output, session) {
     df <- metrics_data()
     df <- df[order(df$Month), ]
     
+    current_month <- month_time()
+    df <- df[df$Month <= current_month, ] 
+    
     metric <- input$selected_metric
     values <- as.numeric(df[[metric]])
     df$MonthLabel <- factor(month.name[df$Month], levels = month.name)
@@ -466,6 +492,9 @@ server <- function(input, output, session) {
   output$fraud_count_plot <- renderPlot({
     df <- metrics_data()
     df <- df[order(df$Month), ]
+    
+    current_month <- month_time()
+    df <- df[df$Month <= current_month, ]
     
     barplot(
       height = df$n_Frauds * 10.1,
