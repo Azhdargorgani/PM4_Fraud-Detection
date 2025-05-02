@@ -1,35 +1,48 @@
-source("FDS_Model_Evaluation.R", local = TRUE)
-#___________________Model 1 (Fraud / not Fraud) retraining__________________________________
+#___________________Model 1 (Fraud / No Fraud) Retraining__________________________________
 
-train_model <- function(mode = c("initial", "retrain"), month_t,
+train_model <- function(mode = c("initial", "retrain"),
+                        start_month,
+                        end_month,
                         train_data_path = "99_DATA/train_data_Fraud.rds",
                         model_path = "80_MODELS/fraud_model.rds",
                         ntree = 100,
                         test_data_path = "99_DATA/test_data.rds",
-                        test_labels_path = "99_DATA/test_labels.rds",
-                        n_month = 1) {
+                        test_labels_path = "99_DATA/test_labels.rds") {
   
   mode <- match.arg(mode)
   
-  #Filter data to months we want to use for training
-  train_data <- readRDS(train_data_path)
-  train_data <- train_data[month(train_data$TX_Date) < month_t & month(train_data$TX_Date) >= (month_t-n_month),]
-  train_data <- subset(train_data, select = -c(TX_Date))
-  
+  # 📥 Load training data
   if (!file.exists(train_data_path)) {
     return("❌ Error: Training data not found.")
   }
+  train_data <- readRDS(train_data_path)
   
-  #Initial training-------------------------------------------------------------
+  # 📅 Filter by month range (inclusive of start and end month)
+  train_data <- train_data[
+    lubridate::month(train_data$TX_Date) >= start_month &
+      lubridate::month(train_data$TX_Date) <= end_month, ]
+  
+  # 🧹 Remove date column
+  train_data <- subset(train_data, select = -c(TX_Date))
+  
+  # 📦 Clean factor levels (important!)
+  train_data$TX_FRAUD <- factor(train_data$TX_FRAUD)
+  train_data$TX_FRAUD <- droplevels(train_data$TX_FRAUD)
+  
+  # ❗Abort if only one class is present
+  if (length(unique(train_data$TX_FRAUD)) < 2) {
+    return("❌ Retraining aborted: Only one class (e.g., only 'No Fraud') in the training period.")
+  }
+  
+  # Initial training -------------------------------------------------------------
   if (mode == "initial") {
     if (file.exists(model_path)) {
-      return("⚠️ Model already exists. Please use Retrain instead.")
+      return("⚠️ Model already exists. Please use retrain instead.")
     }
     
-    
-    # CV + Modelltraining mit mtry-Tuning
+    # CV + model training with mtry tuning
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
-    tune_grid <- expand.grid(mtry = c(2, 5, 10, 13, 24))  # Beispielhafte Werte
+    tune_grid <- expand.grid(mtry = c(2, 5, 10, 13, 24))  # Example values
     
     model <- train(
       TX_FRAUD ~ .,
@@ -46,10 +59,9 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
       best_tune = model$bestTune,
       ntree = ntree
     ))
-    
   }
   
-  #Retrain----------------------------------------------------------------------
+  # Retraining --------------------------------------------------------------------
   if (mode == "retrain") {
     if (!file.exists(model_path)) {
       return("❌ Error: No existing model found. Please train an initial model first.")
@@ -57,9 +69,7 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
     
     file.copy(from = model_path, to = "80_MODELS/old_fraud_model.rds", overwrite = TRUE)
     
-
-    # training (with 10-fold CV)
-
+    # Retrain (with 10-fold cv)
     ctrl <- trainControl(method = "cv", number = 5, verboseIter = TRUE)
     tune_grid <- expand.grid(mtry = c(2, 5, 10, 13, 24))
     
@@ -85,7 +95,6 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
         old_model = old_metrics,
         new_model = new_metrics
       ))
-      
     } else {
       return(list(
         message = "✅ Model retrained. No test data available for evaluation.",
@@ -94,4 +103,3 @@ train_model <- function(mode = c("initial", "retrain"), month_t,
     }
   }
 }
-
