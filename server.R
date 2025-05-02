@@ -312,7 +312,7 @@ server <- function(input, output, session) {
   })
 
   # 📌 #Live Metriken des Aktuellen Modells
-  output$model_info_metrics_box <- renderTable({
+    output$model_info_metrics_box <- renderTable({
     req(file.exists("70_Performance_Hist/metrics.rds"))
     
     df <- readRDS("70_Performance_Hist/metrics.rds")
@@ -324,6 +324,46 @@ server <- function(input, output, session) {
     metrics <- row[, c("Accuracy", "Precision", "Recall", "F1_Score"), drop = FALSE]
     format_df(metrics, 4)
   }, rownames = FALSE)
+  #------importance------
+  output$feature_importance_plot <- renderPlot({
+    model_update_trigger()  # automatisches Update bei Modelländerung
+    
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    
+    model <- readRDS("80_MODELS/fraud_model.rds")
+    
+    # Extract importance from final model
+    imp <- randomForest::importance(model$finalModel)
+    imp_df <- data.frame(
+      Feature = rownames(imp),
+      Importance = imp[, "MeanDecreaseGini"]
+    )
+    
+    
+    ggplot(imp_df, aes(x = reorder(Feature, Importance), y = Importance)) +
+      geom_col(fill = "gray30") +
+      coord_flip() +
+      labs(
+        title = "Feature Importance – Random Forest",
+        x = "Feature",
+        y = "Mean Decrease in Gini"
+      ) +
+      theme_minimal(base_size = 14)
+  })
+  
+  #error evolution plot for number of trees
+  output$rf_error_plot <- renderPlot({
+    model_update_trigger()
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    
+    rf <- readRDS("80_MODELS/fraud_model.rds")$finalModel
+    err <- rf$err.rate
+    
+    matplot(err, type = "l", lty = 1, col = c("black", "darkgreen", "red"),
+            main = "Random Forest Error Over Trees", ylab = "Error", xlab = "Trees")
+    legend("topright", legend = colnames(err), col = c("black", "darkgreen", "red"), lty = 1)
+  })
+
 
   # 📌 Transaction pending Review-----------------------------------------------------
   
@@ -439,28 +479,42 @@ server <- function(input, output, session) {
   })
   
   # 📌 Display dashboard metrics
-  output$dashboard_metrics_box <- renderUI({
-    req(file.exists("70_Performance_Hist/metrics.rds"))
-    metrics <- readRDS("70_Performance_Hist/metrics.rds")
-    
-    # Current month
-    current_month <- month_time()
-    
-    # Filter row for current month
-    row <- metrics[metrics$Month == current_month, ]
-    
-    if (nrow(row) == 0) {
-      return(tags$div("No metrics for this month"))
-    }
-    
-    # Display multiple valueBoxes side by side
-    fluidRow(
-      valueBox(paste0(row$Accuracy * 100, "%"), "Accuracy", color = "blue", icon = icon("check")),
-      valueBox(paste0(row$Precision * 100, "%"), "Precision", color = "blue", icon = icon("bullseye")),
-      valueBox(paste0(row$Recall * 100, "%"), "Recall", color = "blue", icon = icon("sync-alt")),
-      valueBox(paste0(row$F1_Score * 100, "%"), "F1 Score", color = "blue", icon = icon("star"))
-    )
-  })
+output$all_metrics_and_boxes <- renderUI({
+  req(file.exists("70_Performance_Hist/metrics.rds"))
+  req(input$metrics_to_show)
+
+  metrics <- readRDS("70_Performance_Hist/metrics.rds")
+  current_month <- month_time()
+  row <- metrics[metrics$Month == current_month, ]
+
+  if (nrow(row) == 0) return(tags$div("No metrics for this month."))
+
+  selected <- input$metrics_to_show
+  boxes <- list()
+
+  if ("Accuracy" %in% selected) {
+    boxes <- append(boxes, list(valueBox(paste0(round(row$Accuracy * 100, 2), "%"), "Accuracy", color = "blue")))
+  }
+  if ("Precision" %in% selected) {
+    boxes <- append(boxes, list(valueBox(paste0(round(row$Precision * 100, 2), "%"), "Precision", color = "blue")))
+  }
+  if ("Recall" %in% selected) {
+    boxes <- append(boxes, list(valueBox(paste0(round(row$Recall * 100, 2), "%"), "Recall", color = "blue")))
+  }
+  if ("F1_Score" %in% selected) {
+    boxes <- append(boxes, list(valueBox(paste0(round(row$F1_Score * 100, 2), "%"), "F1 Score", color = "blue")))
+  }
+  if ("AUC" %in% selected && "AUC" %in% names(row)) {
+    boxes <- append(boxes, list(valueBox(paste0(round(row$AUC * 100, 2), "%"), "AUC", color = "blue")))
+  }
+  if ("LogLoss" %in% selected && "LogLoss" %in% names(row)) {
+    boxes <- append(boxes, list(valueBox(round(row$LogLoss, 4), "Log Loss", color = "blue")))
+  }
+
+  fluidRow(boxes)
+})
+
+  
   
   # 📌 Number of frauds this month (simulated data, not training data)
   pending_data <- if (file.exists("99_DATA/pending_history.rds")) {
@@ -517,12 +571,15 @@ server <- function(input, output, session) {
     values <- as.numeric(df[[metric]])
     df$MonthLabel <- factor(month.name[df$Month], levels = month.name)
     
-    ymin <- min(values) - 0.002
-    ymax <- max(values) + 0.002
-    if (ymin < 0.95) ymin <- 0.99
-    if (ymax > 1.0) ymax <- 1.0
+    # Dynamische y-Achse
+    ymin <- min(values, na.rm = TRUE) - 0.05
+    ymax <- max(values, na.rm = TRUE) + 0.05
+    if (metric %in% c("Accuracy", "Precision", "Recall", "F1_Score", "AUC")) {
+      ymin <- max(0.5, ymin)
+      ymax <- min(1.0, ymax)
+    }
     
-    plot(months <- df$Month, values,
+    plot(df$Month, values,
          type = "o",
          col = "darkblue",
          lwd = 2,
@@ -531,8 +588,9 @@ server <- function(input, output, session) {
          ylab = metric,
          xaxt = "n",
          main = paste(metric, "Trend Over Time"))
-    axis(1, at = df$Month, labels = month.name[months])
+    axis(1, at = df$Month, labels = month.name[df$Month])
   })
+  
   
   # 📌 Plot number of frauds in test data
   output$fraud_count_plot <- renderPlot({
