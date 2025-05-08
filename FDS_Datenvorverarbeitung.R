@@ -29,7 +29,7 @@ datenvorverarbeitung <- function() {
               all.x = TRUE, all.y = FALSE)
   
   # ------------------- Feature engineering ------------------- #
-  tx$TX_TIME <- as.POSIXct(tx$TX_DATETIME, format = "%Y-%m-%d %H:%M:%S")
+  tx$TX_TIME <- as.POSIXct(tx$TX_DATETIME, format = "%Y-%m-%d %H:%M:%S", tz = "Europe/Berlin")
   tx$TX_HOUR <- hour(tx$TX_DATETIME)
   tx$TX_WEEKDAY <- factor(lubridate::wday(tx$TX_DATETIME, label = TRUE), ordered = FALSE)
   tx$TX_Date <- as.Date(tx$TX_TIME)

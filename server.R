@@ -564,7 +564,7 @@ server <- function(input, output, session) {
         addTiles() %>%
         addPopups(
           lng = 0, lat = 0,
-          popup = "📭 No Legit transaction data or coordinates available.",
+          popup = "📭 Fraud transaction data or coordinates available.",
           options = popupOptions(closeButton = FALSE)
         )
       
