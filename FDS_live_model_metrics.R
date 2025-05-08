@@ -44,12 +44,12 @@ save_live_metrics <- function(
   # Create metrics row
   acc_row <- data.frame(
     Month = current_month,
-    Accuracy = round(metrics["Accuracy"], 4),
-    Precision = round(metrics["Precision"], 4),
-    Recall = round(metrics["Recall"], 4),
-    F1_Score = round(metrics["F1_Score"], 4),
-    AUC = round(metrics["AUC"], 4),
-    LogLoss = round(metrics["LogLoss"], 4),
+    Accuracy = round(metrics$Accuracy, 4),
+    Precision = round(metrics$Precision, 4),
+    Recall = round(metrics$Recall, 4),
+    F1_Score = round(metrics$F1_Score, 4),
+    AUC = round(metrics$AUC, 4),
+    LogLoss = round(metrics$LogLoss, 4),
     n_Frauds = test_frauds
   )
   
@@ -75,4 +75,3 @@ save_live_metrics <- function(
   saveRDS(combined_df, output_path)
   return(combined_df)
 }
-
