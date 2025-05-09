@@ -184,10 +184,6 @@ ui <- secure_app(
                       ),
                       column(width = 4,
                              br(),
-                             actionButton("accept_new_model", "Accept New Model")
-                      ),
-                      column(width = 4,
-                             br(),
                              actionButton("train_initial_model", "Train Initial Model")
                       )
                     ),
@@ -199,21 +195,34 @@ ui <- secure_app(
                 textOutput("last_update"),
                 
                 fluidRow(
-                  box(title = "Old Model Test Metrics", width = 6, status = "warning", id = "box_old_model",
-                      htmlOutput("old_model_metrics"),
-                      textOutput("old_model_best_tune")
+                  box(
+                    title = "Model Selection & Evaluation",
+                    width = 12,
+                    status = "primary",
+                    solidHeader = TRUE,
+                    
+                    fluidRow(
+                      column(6,
+                             h4("📦 Archived Model"),
+                             selectInput("archived_model_select", "Choose archived model:",
+                                         choices = list.files("80_MODELS", pattern = "^fraud_model_.*\\.rds$")),
+                             tableOutput("archived_model_metrics"),
+                             textOutput("archived_model_best_tune"),
+                             actionButton("activate_archived_model", "Set as Active Model")
+                      ),
+                      column(6,
+                             h4("✅ Active Model"),
+                             textOutput("active_model_name"),
+                             tableOutput("active_model_metrics"),
+                             h5(tags$strong("Confusion Matrix")),
+                             tableOutput("active_model_confusion"),
+                             textOutput("live_model_best_tune")
+                      )
+                    )
                   ),
-                  box(title = "New Model Test Metrics", width = 6, status = "success", id = "box_new_model",
-                      htmlOutput("new_model_metrics"),
-                      textOutput("new_model_best_tune")
-                  ),
-                  box(title = "Model Test Metrics", width = 6, status = "primary", height = 200,
-                      tableOutput("live_model_metrics"),
-                      textOutput("live_model_best_tune")
-                  ),
-                  box(title = "Real Time Model Performance", width = 6, status = "primary", height = 200,
-                      tableOutput("model_info_metrics_box")
-                  ),
+                  # box(title = "Real Time Model Performance", width = 6, status = "primary", height = 200,
+                  #     tableOutput("model_info_metrics_box")
+                  # ),
                   box(
                     title = "Feature Importance",
                     width = 6,

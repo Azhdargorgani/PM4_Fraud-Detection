@@ -52,6 +52,12 @@ server <- function(input, output, session) {
     return(df)
   }
   # 📌 Model Information--------------------------------------------------------
+  #Arch modelle aktualisieren
+  observe({
+    invalidateLater(2000, session)  # alle 2 Sekunden prüfen
+    model_files <- list.files("80_MODELS", pattern = "^fraud_model_.*\\.rds$", full.names = FALSE)
+    updateSelectInput(session, "archived_model_select", choices = model_files)
+  })
   # 📌 Display header: Initial Training or Retraining
   output$new_model_header <- renderUI(
     h4(training_mode())
@@ -139,64 +145,34 @@ server <- function(input, output, session) {
     start_month <- month_range[1]
     end_month <- month_range[length(month_range)]
     
-
-      train_model(
-        mode = "initial",
-        ntree = input$rf_ntree,
-        start_month = 6,
-        end_month = 12
-      )
+    train_model(
+      mode = "initial",
+      ntree = input$rf_ntree,
+      start_month = start_month,
+      end_month = end_month
+    )
     
-    # Show live metrics AND "New Model Metrics" box
-    if (file.exists("80_MODELS/fraud_model.rds") &&
-        file.exists("99_DATA/test_data.rds") &&
-        file.exists("99_DATA/test_labels.rds")) {
-      
-      metrics <- evaluate_model("80_MODELS/fraud_model.rds", 
-                                "99_DATA/test_data.rds", 
-                                "99_DATA/test_labels.rds")
-      
-      formatted_metrics <- format_df(metrics, 4)
-      
-      # Show box same as retraining
-      output$new_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
-      output$new_model_best_tune <- renderText({
-        mtry_val <- if (!is.null(result$best_tune$mtry)) result$best_tune$mtry else NA
-        paste0("Model Information: mtry = ", mtry_val, " | ntree = ", input$rf_ntree)
-      })
-      
-      shinyjs::show("box_new_model")
-      
-      # Update live metrics immediately
-      output$live_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
+    output$update_status <- renderText("✅ Initial model trained.")
+  })
+  
+  observeEvent(input$activate_archived_model, {
+    req(input$archived_model_select)
+    src <- file.path("80_MODELS", input$archived_model_select)
+    dest <- "80_MODELS/fraud_model.rds"
+    
+    if (file.exists(src)) {
+      file.copy(from = src, to = dest, overwrite = TRUE)
+      output$update_status <- renderText(paste("✅", input$archived_model_select, "is now the active model."))
       model_update_trigger(Sys.time())
+    } else {
+      output$update_status <- renderText("❌ Selected model file not found.")
     }
   })
+    
+      
   
   # 📌 Retraining
   observeEvent(input$retrain_model, {
-    observe({
-      val <- model_result()
-      req(val)
-      
-      new_vals <- tryCatch(as.numeric(val$new_model[1:4, 1]), error = function(e) rep(NA, 4))
-      old_vals <- tryCatch(as.numeric(val$old_model[1:4, 1]), error = function(e) rep(NA, 4))
-      diffs <- new_vals - old_vals
-      
-      status_class <- if (any(is.na(diffs))) {
-        "box-default"
-      } else if (all(diffs > 0)) {
-        "box-success"
-      } else if (all(diffs <= 0)) {
-        "box-danger"
-      } else {
-        "box-warning"
-      }
-      
-      shinyjs::runjs("$('#box_new_model').removeClass('box-success box-danger box-warning box-default');")
-      shinyjs::runjs(sprintf("$('#box_new_model').addClass('%s');", status_class))
-    })
-    
     if (input$rf_ntree > 1000) {
       output$update_status <- renderText("⚠️ Maximum 1000 trees allowed.")
       return()
@@ -216,127 +192,126 @@ server <- function(input, output, session) {
     
     start_month <- month_range[1]
     end_month <- month_range[length(month_range)]
-
-      train_model(
-        mode = "retrain",
-        ntree = input$rf_ntree,
-        start_month = start_month,
-        end_month = end_month 
-      )
     
+    # 📌 Modell trainieren
+    result <- train_model(
+      mode = "retrain",
+      ntree = input$rf_ntree,
+      start_month = start_month,
+      end_month = end_month 
+    )
+    model_result(result)  # Ergebnis speichern
     
-    if (is.list(result)) {
-      training_mode("Retraining")
-      output$update_status <- renderText(result$message)
-      
-      # 📌 OLD MODEL METRICS mit Farbvergleich
-      output$old_model_metrics <- renderUI({
-        old <- result$old_model
-        new <- result$new_model
-        
-        html <- "<table class='table table-bordered table-sm' style='width:100%; font-size:14px;'>"
-        col_names <- colnames(old)
-        html <- paste0(html, "<thead><tr>",
-                       paste0("<th>", col_names, "</th>", collapse = ""),
-                       "</tr></thead><tbody>")
-        
-        for (i in rownames(old)) {
-          html <- paste0(html, "<tr>")
-          for (j in seq_along(col_names)) {
-            old_val <- round(old[i, j], 4)
-            new_val <- round(new[i, j], 4)
-            
-            color <- if (old_val > new_val) {
-              "#d4edda"
-            } else if (old_val < new_val) {
-              "#f8d7da"
-            } else {
-              "#ffffff"
-            }
-            
-            html <- paste0(html, "<td style='background-color:", color, "'>", old_val, "</td>")
-          }
-          html <- paste0(html, "</tr>")
-        }
-        
-        html <- paste0(html, "</tbody></table>")
-        HTML(html)
-      })
-      
-      # 📌 NEW MODEL METRICS mit Farbvergleich
-      output$new_model_metrics <- renderUI({
-        old <- result$old_model
-        new <- result$new_model
-        
-        html <- "<table class='table table-bordered table-sm' style='width:100%; font-size:14px;'>"
-        col_names <- colnames(new)
-        html <- paste0(html, "<thead><tr>",
-                       paste0("<th>", col_names, "</th>", collapse = ""),
-                       "</tr></thead><tbody>")
-        
-        for (i in rownames(new)) {
-          html <- paste0(html, "<tr>")
-          for (j in seq_along(col_names)) {
-            new_val <- round(new[i, j], 4)
-            old_val <- round(old[i, j], 4)
-            
-            color <- if (new_val > old_val) {
-              "#d4edda"
-            } else if (new_val < old_val) {
-              "#f8d7da"
-            } else {
-              "#ffffff"
-            }
-            
-            html <- paste0(html, "<td style='background-color:", color, "'>", new_val, "</td>")
-          }
-          html <- paste0(html, "</tr>")
-        }
-        
-        html <- paste0(html, "</tbody></table>")
-        HTML(html)
-      })
-      
-      # 📌 Zusatzinfos anzeigen
-      output$old_model_best_tune <- renderText(model_info_live())
-      output$new_model_best_tune <- renderText({
-        paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", result$ntree)
-      })
-      
-      # 📌 Boxen sichtbar machen
-      shinyjs::show("box_old_model")
-      shinyjs::show("box_new_model")
-      
+    # 📌 Box-Klasse setzen
+    new_vals <- tryCatch(as.numeric(result$new_model[1:4, 1]), error = function(e) rep(NA, 4))
+    old_vals <- tryCatch(as.numeric(result$old_model[1:4, 1]), error = function(e) rep(NA, 4))
+    diffs <- new_vals - old_vals
+    
+    status_class <- if (any(is.na(diffs))) {
+      "box-default"
+    } else if (all(diffs > 0)) {
+      "box-success"
+    } else if (all(diffs <= 0)) {
+      "box-danger"
     } else {
-      # 📌 Fehlerbehandlung
-      output$update_status <- renderText(result)
-      output$old_model_metrics <- renderTable(NULL)
-      output$new_model_metrics <- renderTable(NULL)
-      output$old_model_best_tune <- renderText(NULL)
-      output$new_model_best_tune <- renderText(NULL)
+      "box-warning"
     }
+    
+    shinyjs::runjs("$('#box_new_model').removeClass('box-success box-danger box-warning box-default');")
+    shinyjs::runjs(sprintf("$('#box_new_model').addClass('%s');", status_class))
+    
+    output$update_status <- renderText("✅ Retrained successfully.")
+  })
+  
+    
+ 
+  
+  #aktiv modell metrik
+  output$active_model_metrics <- renderTable({
+    model_update_trigger()
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    
+    result <- evaluate_model(
+      model_path = "80_MODELS/fraud_model.rds",
+      test_data_path = "99_DATA/test_data.rds",
+      test_labels_path = "99_DATA/test_labels.rds"
+    )
+    
+    result$metrics  # Nur Metriken zurückgeben
+  }, rownames = FALSE)
+  
+  #Neues model aktivieren
+  observeEvent(input$activate_archived_model, {
+    req(input$archived_model_select)
+    src <- file.path("80_MODELS", input$archived_model_select)
+    dest <- "80_MODELS/fraud_model.rds"
+    
+    if (file.exists(src)) {
+      file.copy(from = src, to = dest, overwrite = TRUE)
+      
+      # 🟢 HIER: Modellnamen separat speichern
+      writeLines(input$archived_model_select, "80_MODELS/active_model_name.txt")
+      
+      output$update_status <- renderText(paste("✅", input$archived_model_select, "is now the active model."))
+      model_update_trigger(Sys.time())
+    } else {
+      output$update_status <- renderText("❌ Selected model file not found.")
+    }
+  })
+  
+  output$active_model_name <- renderText({
+    model_update_trigger()  # 👉 sorgt für Reaktivität
+    
+    if (file.exists("80_MODELS/active_model_name.txt")) {
+      paste("Active model:", readLines("80_MODELS/active_model_name.txt"))
+    } else {
+      "Active model: unknown"
+    }
+  })
+  
+  #Confusion Matrix
+  output$active_model_confusion <- renderTable({
+    model_update_trigger()
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    
+    result <- evaluate_model(
+      model_path = "80_MODELS/fraud_model.rds",
+      test_data_path = "99_DATA/test_data.rds",
+      test_labels_path = "99_DATA/test_labels.rds"
+    )
+    
+    as.data.frame(result$confusion)
   })
   
   
   
-  # 📌 Accept new model
-  observeEvent(input$accept_new_model, {
-    new_model_path <- "80_MODELS/new_fraud_model.rds"
-    final_model_path <- "80_MODELS/fraud_model.rds"
+  
+  # 📌 Archivierte model metriken
+  output$archived_model_metrics <- renderTable({
+    req(input$archived_model_select)
+    path <- file.path("80_MODELS", input$archived_model_select)
     
-    if (file.exists(new_model_path)) {
-      file.copy(from = new_model_path, to = final_model_path, overwrite = TRUE)
-      
-      output$update_status <- renderText("✅ New model accepted and is now live.")
-      shinyjs::hide("box_old_model")
-      shinyjs::hide("box_new_model")
-      training_mode(NULL)
-      save_live_metrics(current_month = month_time())
-      model_update_trigger(Sys.time())  # Trigger live metrics update
-      
-    } else {
-      output$update_status <- renderText("⚠️ No new model to accept. Please run retrain first.")
-    }
+    result <- evaluate_model(
+      model_path = path,
+      test_data_path = "99_DATA/test_data.rds",
+      test_labels_path = "99_DATA/test_labels.rds"
+    )
+    
+    format_df(result$metrics, 4)
+  }, rownames = FALSE)
+  
+  
+  output$archived_model_best_tune <- renderText({
+    req(input$archived_model_select)
+    path <- file.path("80_MODELS", input$archived_model_select)
+    
+    if (!file.exists(path)) return("Model file not found.")
+    
+    model <- readRDS(path)
+    mtry_val <- tryCatch(model$bestTune$mtry, error = function(e) NA)
+    ntree_val <- tryCatch(model$ntree %||% model$finalModel$ntree, error = function(e) NA)
+    
+    paste0("Model Information: mtry = ", mtry_val, " | ntree = ", ntree_val)
   })
 
   # 📌 #Live Metriken des Aktuellen Modells
@@ -425,7 +400,7 @@ server <- function(input, output, session) {
       pred.var = input$ice_variable,
       which.class = "Fraud",   # <-- oder TRUE / 1 je nach Label
       prob = TRUE,
-      ice = FALSE
+      ice = TRUE
     )
     
     plotPartial(ice_result, main = paste("ICE Plot for", input$ice_variable))
@@ -564,7 +539,7 @@ server <- function(input, output, session) {
         addTiles() %>%
         addPopups(
           lng = 0, lat = 0,
-          popup = "📭 Fraud transaction data or coordinates available.",
+          popup = "📭 No Fraud transaction data or coordinates available.",
           options = popupOptions(closeButton = FALSE)
         )
       

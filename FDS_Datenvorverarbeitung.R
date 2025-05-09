@@ -18,7 +18,7 @@ datenvorverarbeitung <- function() {
                                   labels = c("Legit", "Fraud"))
   transactions$TX_FRAUD_SCENARIO <- factor(transactions$TX_FRAUD_SCENARIO,
                                            levels = c(0, 1, 2, 3))
-  transactions <- transactions[sample(1:nrow(transactions), 500000),]  # TEMP SAMPLE!!!!
+  transactions <- transactions[sample(1:nrow(transactions), 50000),]  # TEMP SAMPLE!!!!
   
   # Merge data frames into one
   tx <- merge(customers, transactions, 

@@ -2,7 +2,7 @@
 predict_transactions <- function(transactions, 
                                  model_path = "80_MODELS/fraud_model.rds", 
                                  pending_history_path = "99_DATA/pending_history.rds",
-                                 cutoff = 0.4) {
+                                 cutoff = 0.5) {
   if (!file.exists(model_path)) {
     stop("Error: Model does not exist!")
   }

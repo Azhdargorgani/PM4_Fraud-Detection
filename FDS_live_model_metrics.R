@@ -32,11 +32,13 @@ save_live_metrics <- function(
   saveRDS(current_labels, "99_DATA/temp_test_labels_month.rds")
   
   # Evaluate model
-  metrics <- evaluate_model(
+  result <- evaluate_model(
     model_path = model_path,
     test_data_path = "99_DATA/temp_test_data_month.rds",
     test_labels_path = "99_DATA/temp_test_labels_month.rds"
   )
+  metrics <- result$metrics
+  
   
   # Count number of actual frauds in the month
   test_frauds <- sum(current_labels$TX_FRAUD == "Fraud", na.rm = TRUE)
