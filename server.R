@@ -249,7 +249,7 @@ server <- function(input, output, session) {
     if (file.exists(src)) {
       file.copy(from = src, to = dest, overwrite = TRUE)
       
-      # 🟢 HIER: Modellnamen separat speichern
+      # Modellnamen separat speichern
       writeLines(input$archived_model_select, "80_MODELS/active_model_name.txt")
       
       output$update_status <- renderText(paste("✅", input$archived_model_select, "is now the active model."))
@@ -742,7 +742,7 @@ output$transaction_stats_boxes <- renderUI({
     ymin <- min(values, na.rm = TRUE) - 0.05
     ymax <- max(values, na.rm = TRUE) + 0.05
     if (metric %in% c("Accuracy", "Precision", "Recall", "F1_Score", "AUC")) {
-      ymin <- max(0.5, ymin)
+      ymin <- max(0, ymin)
       ymax <- min(1.0, ymax)
     }
     
