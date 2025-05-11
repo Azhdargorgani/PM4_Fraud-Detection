@@ -1,15 +1,40 @@
-
+source("FDS_Retrain_Model.R", local = TRUE)
+source("FDS_Model_Evaluation.R", local = TRUE)
+source("FDS_predict_tx.R", local = TRUE)
+source("FDS_DEMO_SIM.R", local = TRUE)
+source("FDS_Shiny_Functions.R", local = TRUE)
+source("FDS_live_model_metrics.R", local = TRUE)
+source("credentials.R")
 server <- function(input, output, session) {
-  source("FDS_Retrain_Model.R", local = TRUE)
-  source("FDS_Model_Evaluation.R", local = TRUE)
-  source("FDS_predict_tx.R", local = TRUE)
-  source("FDS_DEMO_SIM.R", local = TRUE)
-  source("FDS_Shiny_Functions.R", local = TRUE)
-  source("FDS_live_model_metrics.R", local = TRUE)
+
   
   # 📌 Meta System Functions----------------------------------------------------
+
+   #Secure login
+  res_auth <- secure_server(check_credentials = check_credentials(credentials))
+  
+  observeEvent(res_auth$user, {
+    updateTabItems(session, inputId = "tabs", selected = "dashboard")
+  })
+  output$sidebar_ui <- renderUI({
+    tagList(
+      sidebarMenu(
+        id = "tabs",
+        selected = "dashboard",
+        menuItem("Live Dashboard", tabName = "dashboard", icon = icon("tachometer-alt")),
+        menuItem("Transactions Pending Review", tabName = "history_pending", icon = icon("search-dollar")),
+        menuItem("Transaction History", tabName = "history", icon = icon("database")),
+        if (res_auth$role == "admin") {
+          menuItem("Model Information", tabName = "model_information", icon = icon("sync-alt"))
+        }
+      )
+    )
+  })
+  
+  
   #Monat anpassen wenn knopf in UI header gedrückt wird
-  month_time <- update_month()
+  month_time <- update_month(input, output, session)
+
   
   # 📌 Reactive values and triggers
   model_update_trigger <- reactiveVal(Sys.time())
@@ -27,6 +52,12 @@ server <- function(input, output, session) {
     return(df)
   }
   # 📌 Model Information--------------------------------------------------------
+  #Arch modelle aktualisieren
+  observe({
+    invalidateLater(2000, session)  # alle 2 Sekunden prüfen
+    model_files <- list.files("80_MODELS", pattern = "^fraud_model_.*\\.rds$", full.names = FALSE)
+    updateSelectInput(session, "archived_model_select", choices = model_files)
+  })
   # 📌 Display header: Initial Training or Retraining
   output$new_model_header <- renderUI(
     h4(training_mode())
@@ -114,64 +145,34 @@ server <- function(input, output, session) {
     start_month <- month_range[1]
     end_month <- month_range[length(month_range)]
     
-    # Train model (Initial)
-    result <- train_model(
+    train_model(
       mode = "initial",
       ntree = input$rf_ntree,
       start_month = start_month,
       end_month = end_month
     )
     
-    # Show live metrics AND "New Model Metrics" box
-    if (file.exists("80_MODELS/fraud_model.rds") &&
-        file.exists("99_DATA/test_data.rds") &&
-        file.exists("99_DATA/test_labels.rds")) {
-      
-      metrics <- evaluate_model("80_MODELS/fraud_model.rds", 
-                                "99_DATA/test_data.rds", 
-                                "99_DATA/test_labels.rds")
-      
-      formatted_metrics <- format_df(metrics, 4)
-      
-      # Show box same as retraining
-      output$new_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
-      output$new_model_best_tune <- renderText({
-        mtry_val <- if (!is.null(result$best_tune$mtry)) result$best_tune$mtry else NA
-        paste0("Model Information: mtry = ", mtry_val, " | ntree = ", input$rf_ntree)
-      })
-      
-      shinyjs::show("box_new_model")
-      
-      # Update live metrics immediately
-      output$live_model_metrics <- renderTable(formatted_metrics, rownames = TRUE)
+    output$update_status <- renderText("✅ Initial model trained.")
+  })
+  
+  observeEvent(input$activate_archived_model, {
+    req(input$archived_model_select)
+    src <- file.path("80_MODELS", input$archived_model_select)
+    dest <- "80_MODELS/fraud_model.rds"
+    
+    if (file.exists(src)) {
+      file.copy(from = src, to = dest, overwrite = TRUE)
+      output$update_status <- renderText(paste("✅", input$archived_model_select, "is now the active model."))
       model_update_trigger(Sys.time())
+    } else {
+      output$update_status <- renderText("❌ Selected model file not found.")
     }
   })
+    
+      
   
   # 📌 Retraining
   observeEvent(input$retrain_model, {
-    observe({
-      val <- model_result()
-      req(val)
-      
-      new_vals <- tryCatch(as.numeric(val$new_model[1:4, 1]), error = function(e) rep(NA, 4))
-      old_vals <- tryCatch(as.numeric(val$old_model[1:4, 1]), error = function(e) rep(NA, 4))
-      diffs <- new_vals - old_vals
-      
-      status_class <- if (any(is.na(diffs))) {
-        "box-default"
-      } else if (all(diffs > 0)) {
-        "box-success"
-      } else if (all(diffs <= 0)) {
-        "box-danger"
-      } else {
-        "box-warning"
-      }
-      
-      shinyjs::runjs("$('#box_new_model').removeClass('box-success box-danger box-warning box-default');")
-      shinyjs::runjs(sprintf("$('#box_new_model').addClass('%s');", status_class))
-    })
-    
     if (input$rf_ntree > 1000) {
       output$update_status <- renderText("⚠️ Maximum 1000 trees allowed.")
       return()
@@ -192,123 +193,125 @@ server <- function(input, output, session) {
     start_month <- month_range[1]
     end_month <- month_range[length(month_range)]
     
+    # 📌 Modell trainieren
     result <- train_model(
       mode = "retrain",
       ntree = input$rf_ntree,
       start_month = start_month,
       end_month = end_month 
     )
+    model_result(result)  # Ergebnis speichern
     
-    if (is.list(result)) {
-      training_mode("Retraining")
-      output$update_status <- renderText(result$message)
-      
-      # 📌 OLD MODEL METRICS mit Farbvergleich
-      output$old_model_metrics <- renderUI({
-        old <- result$old_model
-        new <- result$new_model
-        
-        html <- "<table class='table table-bordered table-sm' style='width:100%; font-size:14px;'>"
-        col_names <- colnames(old)
-        html <- paste0(html, "<thead><tr>",
-                       paste0("<th>", col_names, "</th>", collapse = ""),
-                       "</tr></thead><tbody>")
-        
-        for (i in rownames(old)) {
-          html <- paste0(html, "<tr>")
-          for (j in seq_along(col_names)) {
-            old_val <- round(old[i, j], 4)
-            new_val <- round(new[i, j], 4)
-            
-            color <- if (old_val > new_val) {
-              "#d4edda"
-            } else if (old_val < new_val) {
-              "#f8d7da"
-            } else {
-              "#ffffff"
-            }
-            
-            html <- paste0(html, "<td style='background-color:", color, "'>", old_val, "</td>")
-          }
-          html <- paste0(html, "</tr>")
-        }
-        
-        html <- paste0(html, "</tbody></table>")
-        HTML(html)
-      })
-      
-      # 📌 NEW MODEL METRICS mit Farbvergleich
-      output$new_model_metrics <- renderUI({
-        old <- result$old_model
-        new <- result$new_model
-        
-        html <- "<table class='table table-bordered table-sm' style='width:100%; font-size:14px;'>"
-        col_names <- colnames(new)
-        html <- paste0(html, "<thead><tr>",
-                       paste0("<th>", col_names, "</th>", collapse = ""),
-                       "</tr></thead><tbody>")
-        
-        for (i in rownames(new)) {
-          html <- paste0(html, "<tr>")
-          for (j in seq_along(col_names)) {
-            new_val <- round(new[i, j], 4)
-            old_val <- round(old[i, j], 4)
-            
-            color <- if (new_val > old_val) {
-              "#d4edda"
-            } else if (new_val < old_val) {
-              "#f8d7da"
-            } else {
-              "#ffffff"
-            }
-            
-            html <- paste0(html, "<td style='background-color:", color, "'>", new_val, "</td>")
-          }
-          html <- paste0(html, "</tr>")
-        }
-        
-        html <- paste0(html, "</tbody></table>")
-        HTML(html)
-      })
-      
-      # 📌 Zusatzinfos anzeigen
-      output$old_model_best_tune <- renderText(model_info_live())
-      output$new_model_best_tune <- renderText({
-        paste0("Model Information: mtry = ", result$best_tune$mtry, " | ntree = ", result$ntree)
-      })
-      
-      # 📌 Boxen sichtbar machen
-      shinyjs::show("box_old_model")
-      shinyjs::show("box_new_model")
-      
+    # 📌 Box-Klasse setzen
+    new_vals <- tryCatch(as.numeric(result$new_model[1:4, 1]), error = function(e) rep(NA, 4))
+    old_vals <- tryCatch(as.numeric(result$old_model[1:4, 1]), error = function(e) rep(NA, 4))
+    diffs <- new_vals - old_vals
+    
+    status_class <- if (any(is.na(diffs))) {
+      "box-default"
+    } else if (all(diffs > 0)) {
+      "box-success"
+    } else if (all(diffs <= 0)) {
+      "box-danger"
     } else {
-      # 📌 Fehlerbehandlung
-      output$update_status <- renderText(result)
-      output$old_model_metrics <- renderTable(NULL)
-      output$new_model_metrics <- renderTable(NULL)
-      output$old_model_best_tune <- renderText(NULL)
-      output$new_model_best_tune <- renderText(NULL)
+      "box-warning"
     }
+    
+    shinyjs::runjs("$('#box_new_model').removeClass('box-success box-danger box-warning box-default');")
+    shinyjs::runjs(sprintf("$('#box_new_model').addClass('%s');", status_class))
+    
+    output$update_status <- renderText("✅ Retrained successfully.")
+  })
+  
+    
+ 
+  
+  #aktiv modell metrik
+  output$active_model_metrics <- renderTable({
+    model_update_trigger()
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    
+    result <- evaluate_model(
+      model_path = "80_MODELS/fraud_model.rds",
+      test_data_path = "99_DATA/test_data.rds",
+      test_labels_path = "99_DATA/test_labels.rds"
+    )
+    
+    result$metrics  # Nur Metriken zurückgeben
+  }, rownames = FALSE)
+  
+  #Neues model aktivieren
+  observeEvent(input$activate_archived_model, {
+    req(input$archived_model_select)
+    src <- file.path("80_MODELS", input$archived_model_select)
+    dest <- "80_MODELS/fraud_model.rds"
+    
+    if (file.exists(src)) {
+      file.copy(from = src, to = dest, overwrite = TRUE)
+      
+      # Modellnamen separat speichern
+      writeLines(input$archived_model_select, "80_MODELS/active_model_name.txt")
+      
+      output$update_status <- renderText(paste("✅", input$archived_model_select, "is now the active model."))
+      model_update_trigger(Sys.time())
+    } else {
+      output$update_status <- renderText("❌ Selected model file not found.")
+    }
+  })
+  
+  output$active_model_name <- renderText({
+    model_update_trigger()  # 👉 sorgt für Reaktivität
+    
+    if (file.exists("80_MODELS/active_model_name.txt")) {
+      paste("Active model:", readLines("80_MODELS/active_model_name.txt"))
+    } else {
+      "Active model: unknown"
+    }
+  })
+  
+  #Confusion Matrix
+  output$active_model_confusion <- renderTable({
+    model_update_trigger()
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    
+    result <- evaluate_model(
+      model_path = "80_MODELS/fraud_model.rds",
+      test_data_path = "99_DATA/test_data.rds",
+      test_labels_path = "99_DATA/test_labels.rds"
+    )
+    
+    as.data.frame(result$confusion)
   })
   
   
   
-  # 📌 Accept new model
-  observeEvent(input$accept_new_model, {
-    new_model_path <- "80_MODELS/new_fraud_model.rds"
-    final_model_path <- "80_MODELS/fraud_model.rds"
+  
+  # 📌 Archivierte model metriken
+  output$archived_model_metrics <- renderTable({
+    req(input$archived_model_select)
+    path <- file.path("80_MODELS", input$archived_model_select)
     
-    if (file.exists(new_model_path)) {
-      file.copy(from = new_model_path, to = final_model_path, overwrite = TRUE)
-      
-      output$update_status <- renderText("✅ New model accepted and is now live.")
-      shinyjs::hide("box_old_model")
-      shinyjs::hide("box_new_model")
-      training_mode(NULL)
-      model_update_trigger(Sys.time())  # Trigger live metrics update
-    } else {
-      output$update_status <- renderText("⚠️ No new model to accept. Please run retrain first.")
-    }
+    result <- evaluate_model(
+      model_path = path,
+      test_data_path = "99_DATA/test_data.rds",
+      test_labels_path = "99_DATA/test_labels.rds"
+    )
+    
+    format_df(result$metrics, 4)
+  }, rownames = FALSE)
+  
+  
+  output$archived_model_best_tune <- renderText({
+    req(input$archived_model_select)
+    path <- file.path("80_MODELS", input$archived_model_select)
+    
+    if (!file.exists(path)) return("Model file not found.")
+    
+    model <- readRDS(path)
+    mtry_val <- tryCatch(model$bestTune$mtry, error = function(e) NA)
+    ntree_val <- tryCatch(model$ntree %||% model$finalModel$ntree, error = function(e) NA)
+    
+    paste0("Model Information: mtry = ", mtry_val, " | ntree = ", ntree_val)
   })
 
   # 📌 #Live Metriken des Aktuellen Modells
@@ -324,7 +327,8 @@ server <- function(input, output, session) {
     metrics <- row[, c("Accuracy", "Precision", "Recall", "F1_Score"), drop = FALSE]
     format_df(metrics, 4)
   }, rownames = FALSE)
-  #------importance------
+    
+  #importance plot------
   output$feature_importance_plot <- renderPlot({
     model_update_trigger()  # automatisches Update bei Modelländerung
     
@@ -363,6 +367,45 @@ server <- function(input, output, session) {
             main = "Random Forest Error Over Trees", ylab = "Error", xlab = "Trees")
     legend("topright", legend = colnames(err), col = c("black", "darkgreen", "red"), lty = 1)
   })
+  
+  #ICE Plot------------
+  # Dynamische Auswahlmöglichkeiten laden
+  observe({
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    model <- readRDS("80_MODELS/fraud_model.rds")
+    
+    # Entferne .outcome
+    features <- setdiff(names(model$trainingData), ".outcome")
+    updateSelectInput(session, "ice_variable", choices = features)
+  })
+  
+  # ICE Plot rendern
+  output$ice_plot <- renderPlot({
+    req(input$ice_variable)
+    req(file.exists("80_MODELS/fraud_model.rds"))
+    
+    model <- readRDS("80_MODELS/fraud_model.rds")
+    train_data <- model$trainingData
+    
+    # Sicherstellen, dass .outcome entfernt ist
+    if (".outcome" %in% names(train_data)) {
+      train_data$Label <- train_data$.outcome
+      train_data$.outcome <- NULL
+    }
+    
+    # ICE berechnen
+    ice_result <- pdp::partial(
+      object = model,
+      train = train_data,
+      pred.var = input$ice_variable,
+      which.class = "Fraud",   # <-- oder TRUE / 1 je nach Label
+      prob = TRUE,
+      ice = TRUE
+    )
+    
+    plotPartial(ice_result, main = paste("ICE Plot for", input$ice_variable))
+  })
+  
 
 
   # 📌 Transaction pending Review-----------------------------------------------------
@@ -383,28 +426,42 @@ server <- function(input, output, session) {
     }
   })
   
+  #auswahl angezeigte reihen
+  output$pending_col_selector <- renderUI({
+    req(rv$pending_data)
+    checkboxGroupInput(
+      inputId = "pending_cols_to_show",
+      label = "Select columns to display:",
+      choices = names(rv$pending_data),
+      selected = names(rv$pending_data),
+      inline = TRUE
+    )
+  })
   output$transaction_table <- DT::renderDataTable({
-    datatable(
-      rv$pending_data,
-      editable = list(
-        target = "cell",
-        columns = which(names(rv$pending_data) == "ManualLabel")  # Nur diese Spalte
-      ),
-      options = list(
-        scrollY = "400px",
-        scrollX = "400px"
-      )
+    req(rv$pending_data)
+    selected_cols <- input$pending_cols_to_show
+    data <- rv$pending_data
+    if (!is.null(selected_cols)) {
+      data <- data[, selected_cols, drop = FALSE]
+    }
+    
+    data[] <- lapply(data, function(x) if (is.numeric(x)) round(x, 2) else x)
+    datatable(data,
+              rownames = TRUE,
+              editable = list(target = "cell", columns = which(names(data) == "ManualLabel")),
+              options = list(scrollY = "400px", scrollX = "400px")
     )
   }, server = FALSE)
+
   
-  # Capture and save table edits
+  # ---Capture and save table edits---
   observeEvent(input$transaction_table_cell_edit, {
     info <- input$transaction_table_cell_edit
     row <- info$row
     colname <- names(rv$pending_data)[info$col]
     new_value <- info$value
     
-    if (colname == "ManualLabel" && new_value %in% c("Fraud", "no Fraud")) {
+    if (colname == "ManualLabel" && new_value %in% c("Fraud", "Legit")) {
       rv$pending_data[row, "ManualLabel"] <- new_value
       saveRDS(rv$pending_data, "99_DATA/pending_history.rds")
     }
@@ -431,8 +488,12 @@ server <- function(input, output, session) {
   
   # 📌 Render DataTable für History
   output$tx_history_table <- DT::renderDataTable({
+    data <- history_data()
+    data[] <- lapply(data, function(x) if (is.numeric(x)) round(x, 2) else x)
+    
     datatable(
-      history_data(),
+      data,
+      rownames = FALSE,
       options = list(
         scrollY = "540px",
         scrollX = "400px"
@@ -442,6 +503,16 @@ server <- function(input, output, session) {
   
   
   # 📌 Dashboard---------------------------------------------------------------
+  #letztes modellupdate
+  output$last_update_dashboard <- renderText({
+    model_update_trigger()
+    if (file.exists("80_MODELS/fraud_model.rds")) {
+      paste("Last Update:", file.info("80_MODELS/fraud_model.rds")$mtime)
+    } else {
+      "No model trained yet."
+    }
+  })
+  
   # 📌 Predict Transaction Fraud (demo)
   observeEvent(
     input$sim_tx, {
@@ -456,27 +527,46 @@ server <- function(input, output, session) {
   
   # Leaflet-Karte anzeigen
   output$fraud_map <- renderLeaflet({
-    data <- fraud_data()
+    df <- fraud_data()
     
-    leaflet(data) %>%
-      addProviderTiles("CartoDB.Positron") %>%
-      addCircleMarkers(
-        lng = ~x_terminal_id,
-        lat = ~y_terminal_id,
-        radius = 6,
-        color = "red",
-        stroke = FALSE,
-        fillOpacity = 0.8,
-        popup = ~paste(
-          "TX_ID:", TRANSACTION_ID, "<br>",
-          "Customer_ID:", CUSTOMER_ID, "<br>",
-          "Terminal_ID:", TERMINAL_ID, "<br>",
-          "Amount:", TX_AMOUNT, "<br>",
-          "Prediction:", Prediction, "<br>",
-          "Time:", TX_TIME
+    # Prüfen, ob Daten existieren und Koordinatenspalten vorhanden sind
+    if (is.null(df) || nrow(df) == 0 ||
+        !"x_terminal_id" %in% names(df) ||
+        !"y_terminal_id" %in% names(df)) {
+      
+      # Leere Karte mit Hinweis anzeigen
+      leaflet() %>%
+        addTiles() %>%
+        addPopups(
+          lng = 0, lat = 0,
+          popup = "📭 No Fraud transaction data or coordinates available.",
+          options = popupOptions(closeButton = FALSE)
         )
-      )
+      
+    } else {
+      # Normale Karte mit Fraud-Punkten anzeigen
+      leaflet(df) %>%
+        addProviderTiles("CartoDB.Positron") %>%
+        addCircleMarkers(
+          lng = ~x_terminal_id,
+          lat = ~y_terminal_id,
+          radius = 6,
+          color = "red",
+          stroke = FALSE,
+          fillOpacity = 0.8,
+          popup = ~paste(
+            "TX_ID:", TRANSACTION_ID, "<br>",
+            "Customer_ID:", CUSTOMER_ID, "<br>",
+            "Terminal_ID:", TERMINAL_ID, "<br>",
+            "Amount:", TX_AMOUNT, "<br>",
+            "Prediction:", Prediction, "<br>",
+            "Time:", TX_TIME
+          )
+        ) %>%
+        addFullscreenControl(position = "topright")
+    }
   })
+  
   
   # 📌 Display dashboard metrics
 output$all_metrics_and_boxes <- renderUI({
@@ -504,51 +594,128 @@ output$all_metrics_and_boxes <- renderUI({
   if ("F1_Score" %in% selected) {
     boxes <- append(boxes, list(valueBox(paste0(round(row$F1_Score * 100, 2), "%"), "F1 Score", color = "blue")))
   }
-  if ("AUC" %in% selected && "AUC" %in% names(row)) {
-    boxes <- append(boxes, list(valueBox(paste0(round(row$AUC * 100, 2), "%"), "AUC", color = "blue")))
-  }
-  if ("LogLoss" %in% selected && "LogLoss" %in% names(row)) {
-    boxes <- append(boxes, list(valueBox(round(row$LogLoss, 4), "Log Loss", color = "blue")))
-  }
 
   fluidRow(boxes)
 })
 
   
   
-  # 📌 Number of frauds this month (simulated data, not training data)
-  pending_data <- if (file.exists("99_DATA/pending_history.rds")) {
-    reactiveFileReader(
-      intervalMillis = 2000,
-      session = session,
-      filePath = "99_DATA/pending_history.rds",
-      readFunc = readRDS
-    )
-  } else {
-    reactive({ data.frame() })  # return empty DataFrame
+  # 📌 Transaction stats this month (simulated data, not training data)
+#Initialisierung beider Tabellen beim Serverstart
+rv <- reactiveValues(
+  pending_data = {
+    if (file.exists("99_DATA/pending_history.rds")) {
+      readRDS("99_DATA/pending_history.rds")
+    } else {
+      data.frame()
+    }
+  },
+  history_data = {
+    if (file.exists("99_DATA/tx_history.rds")) {
+      readRDS("99_DATA/tx_history.rds")
+    } else {
+      data.frame()
+    }
+  }
+)
+
+# Automatische Aktualisierung beider Tabellen
+observe({
+  invalidateLater(2000, session)
+  
+  if (file.exists("99_DATA/pending_history.rds")) {
+    rv$pending_data <- readRDS("99_DATA/pending_history.rds")
   }
   
-  sim_fraud_count <- reactive({
-    # Load data
-    pending <- pending_data()
-    history <- history_data()
-    
-    all_data <- rbind(pending, history)
-    # Filter: current month & "Fraud"
-    filtered <- all_data[lubridate::month(all_data$TX_Date) == month_time() & all_data$ManualLabel == "Fraud",]
-    
-    nrow(filtered)
-  })
+  if (file.exists("99_DATA/tx_history.rds")) {
+    rv$history_data <- readRDS("99_DATA/tx_history.rds")
+  }
+})
+
+# 📌 Kombinierte Daten aus Pending und History
+combined_tx_data <- reactive({
+  req(rv$pending_data, rv$history_data)
+  all_data <- rbind(rv$pending_data, rv$history_data)
   
-  # 📌 Number of frauds in current month (simulated)
-  output$monthly_fraud_box <- renderUI({
-    valueBox(
-      value = sim_fraud_count(),
-      subtitle = paste("Number of Frauds Today"),
-      icon = icon("exclamation-triangle"),
-      color = "red"
-    )
+  selected_month <- month_time()
+  all_data <- all_data[lubridate::month(all_data$TX_Date) == selected_month, ]
+  
+  return(all_data)
+})
+
+
+# 📌 Total Transactions
+total_tx_count <- reactive({
+  nrow(combined_tx_data())
+})
+
+# 📌 Fraud Rate
+fraud_rate <- reactive({
+  df <- combined_tx_data()
+  if (nrow(df) == 0) return(NA)
+  round(mean(df$ManualLabel == "Fraud", na.rm = TRUE) * 100, 2)
+})
+
+# 📌 Avg Fraud Amount (nur bei echten Fraud-Fällen)
+avg_fraud_amount <- reactive({
+  df <- combined_tx_data()
+  frauds <- df[df$ManualLabel == "Fraud", ]
+  if (nrow(frauds) == 0) return(NA)
+  round(mean(frauds$TX_AMOUNT, na.rm = TRUE), 1)
+})
+
+# 📌 Manual interventions
+manual_interventions <- reactive({
+  df <- combined_tx_data()
+  # Fälle, in denen manuell auf Fraud gesetzt wurde, obwohl das Modell "Legit" gesagt hat
+  corrected_frauds <- df[df$ManualLabel == "Fraud" & df$Prediction != "Fraud", ]
+  nrow(corrected_frauds)
+})
+
+# 📌 Detected Frauds (alle manuell markierten)
+num_frauds <- reactive({
+  sum(combined_tx_data()$ManualLabel == "Fraud", na.rm = TRUE)
+})
+
+output$transaction_stats_boxes <- renderUI({
+    req(input$tx_stats_to_show)
+    
+    selected <- input$tx_stats_to_show
+    boxes <- list()
+    
+    if ("total_tx" %in% selected) {
+      boxes <- append(boxes, list(
+        valueBox(total_tx_count(), "Total Transactions", color = "blue")
+      ))
+    }
+    
+    if ("manual_interventions" %in% selected) {
+      boxes <- append(boxes, list(
+        valueBox(manual_interventions(), "Manual Interventions", color = "blue")
+      ))
+    }
+    
+    if ("fraud_rate" %in% selected) {
+      boxes <- append(boxes, list(
+        valueBox(paste0(fraud_rate(), "%"), "Fraud Rate", color = "red")
+      ))
+    }
+    
+    if ("avg_fraud_amount" %in% selected) {
+      boxes <- append(boxes, list(
+        valueBox(paste0(avg_fraud_amount(), " CHF"), "Avg. Fraud Amount", color = "red")
+      ))
+    }
+    
+    if ("num_frauds" %in% selected) {
+      boxes <- append(boxes, list(
+        valueBox(num_frauds(), "Number of Frauds", color = "red")
+      ))
+    }
+    
+    fluidRow(boxes)
   })
+
   
   # 📌 Plot performance trends
   metrics_data <- reactiveFileReader(
@@ -575,7 +742,7 @@ output$all_metrics_and_boxes <- renderUI({
     ymin <- min(values, na.rm = TRUE) - 0.05
     ymax <- max(values, na.rm = TRUE) + 0.05
     if (metric %in% c("Accuracy", "Precision", "Recall", "F1_Score", "AUC")) {
-      ymin <- max(0.5, ymin)
+      ymin <- max(0, ymin)
       ymax <- min(1.0, ymax)
     }
     

@@ -32,11 +32,13 @@ save_live_metrics <- function(
   saveRDS(current_labels, "99_DATA/temp_test_labels_month.rds")
   
   # Evaluate model
-  metrics <- evaluate_model(
+  result <- evaluate_model(
     model_path = model_path,
     test_data_path = "99_DATA/temp_test_data_month.rds",
     test_labels_path = "99_DATA/temp_test_labels_month.rds"
   )
+  metrics <- result$metrics
+  
   
   # Count number of actual frauds in the month
   test_frauds <- sum(current_labels$TX_FRAUD == "Fraud", na.rm = TRUE)
@@ -44,12 +46,12 @@ save_live_metrics <- function(
   # Create metrics row
   acc_row <- data.frame(
     Month = current_month,
-    Accuracy = round(metrics["Accuracy"], 4),
-    Precision = round(metrics["Precision"], 4),
-    Recall = round(metrics["Recall"], 4),
-    F1_Score = round(metrics["F1_Score"], 4),
-    AUC = round(metrics["AUC"], 4),
-    LogLoss = round(metrics["LogLoss"], 4),
+    Accuracy = round(metrics$Accuracy, 4),
+    Precision = round(metrics$Precision, 4),
+    Recall = round(metrics$Recall, 4),
+    F1_Score = round(metrics$F1_Score, 4),
+    AUC = round(metrics$AUC, 4),
+    LogLoss = round(metrics$LogLoss, 4),
     n_Frauds = test_frauds
   )
   
@@ -75,4 +77,3 @@ save_live_metrics <- function(
   saveRDS(combined_df, output_path)
   return(combined_df)
 }
-
