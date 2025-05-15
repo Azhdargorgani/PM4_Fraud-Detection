@@ -53,10 +53,17 @@ server <- function(input, output, session) {
   }
   # 📌 Model Information--------------------------------------------------------
   #Arch modelle aktualisieren
+  last_model_list <- reactiveVal(NULL)
+  
   observe({
-    invalidateLater(2000, session)  # alle 2 Sekunden prüfen
+    invalidateLater(2000, session)
     model_files <- list.files("80_MODELS", pattern = "^fraud_model_.*\\.rds$", full.names = FALSE)
-    updateSelectInput(session, "archived_model_select", choices = model_files)
+    
+    # Only update if the list has changed
+    if (!identical(model_files, last_model_list())) {
+      updateSelectInput(session, "archived_model_select", choices = model_files)
+      last_model_list(model_files)
+    }
   })
   # 📌 Display header: Initial Training or Retraining
   output$new_model_header <- renderUI(
@@ -112,7 +119,7 @@ server <- function(input, output, session) {
     train_data <- readRDS("99_DATA/train_data_Fraud.rds")
     available_months <- sort(unique(lubridate::month(train_data$TX_Date)))
     selected_month <- month_time()
-    filtered <- available_months[available_months < selected_month]
+    filtered <- available_months[available_months <= selected_month]
     end_month <- max(filtered, na.rm = TRUE)
     updateSliderTextInput(session, "retrain_range",
                           choices = month.name[if (length(filtered) > 0) filtered else available_months],
@@ -368,43 +375,44 @@ server <- function(input, output, session) {
     legend("topright", legend = colnames(err), col = c("black", "darkgreen", "red"), lty = 1)
   })
   
-  #ICE Plot------------
-  # Dynamische Auswahlmöglichkeiten laden
-  observe({
-    req(file.exists("80_MODELS/fraud_model.rds"))
-    model <- readRDS("80_MODELS/fraud_model.rds")
-    
-    # Entferne .outcome
-    features <- setdiff(names(model$trainingData), ".outcome")
-    updateSelectInput(session, "ice_variable", choices = features)
-  })
-  
-  # ICE Plot rendern
-  output$ice_plot <- renderPlot({
-    req(input$ice_variable)
-    req(file.exists("80_MODELS/fraud_model.rds"))
-    
-    model <- readRDS("80_MODELS/fraud_model.rds")
-    train_data <- model$trainingData
-    
-    # Sicherstellen, dass .outcome entfernt ist
-    if (".outcome" %in% names(train_data)) {
-      train_data$Label <- train_data$.outcome
-      train_data$.outcome <- NULL
-    }
-    
-    # ICE berechnen
-    ice_result <- pdp::partial(
-      object = model,
-      train = train_data,
-      pred.var = input$ice_variable,
-      which.class = "Fraud",   # <-- oder TRUE / 1 je nach Label
-      prob = TRUE,
-      ice = TRUE
-    )
-    
-    plotPartial(ice_result, main = paste("ICE Plot for", input$ice_variable))
-  })
+  # #ICE Plot------------
+  # # Dynamische Auswahlmöglichkeiten laden
+  # observe({
+  #   req(file.exists("80_MODELS/fraud_model.rds"))
+  #   model <- readRDS("80_MODELS/fraud_model.rds")
+  #   
+  #   # Entferne .outcome
+  #   features <- setdiff(names(model$trainingData), ".outcome")
+  #   updateSelectInput(session, "ice_variable", choices = features)
+  # })
+  # 
+  # # ICE Plot rendern
+  # output$ice_plot <- renderPlot({
+  #   req(input$ice_variable)
+  #   req(file.exists("80_MODELS/fraud_model.rds"))
+  #   
+  #   model <- readRDS("80_MODELS/fraud_model.rds")
+  #   train_data <- model$trainingData
+  #   
+  #   # Sicherstellen, dass .outcome entfernt ist
+  #   if (".outcome" %in% names(train_data)) {
+  #     train_data$Label <- train_data$.outcome
+  #     train_data$.outcome <- NULL
+  #   }
+  #   
+  #   # ICE berechnen
+  #   ice_result <- pdp::partial(
+  #     object = model,
+  #     train = train_data,
+  #     pred.var = input$ice_variable,
+  #     which.class = "Fraud",
+  #     prob = TRUE,
+  #     ice = TRUE,
+  #     train = head(train_data, 100)
+  #   )
+  #   
+  #   plotPartial(ice_result, main = paste("ICE Plot for", input$ice_variable))
+  # })
   
 
 
@@ -661,7 +669,7 @@ avg_fraud_amount <- reactive({
   df <- combined_tx_data()
   frauds <- df[df$ManualLabel == "Fraud", ]
   if (nrow(frauds) == 0) return(NA)
-  round(mean(frauds$TX_AMOUNT, na.rm = TRUE), 1)
+  round(mean(frauds$TX_AMOUNT, na.rm = TRUE), 2)
 })
 
 # 📌 Manual interventions
@@ -703,7 +711,11 @@ output$transaction_stats_boxes <- renderUI({
     
     if ("avg_fraud_amount" %in% selected) {
       boxes <- append(boxes, list(
-        valueBox(paste0(avg_fraud_amount(), " CHF"), "Avg. Fraud Amount", color = "red")
+        valueBox(
+          value = paste0("CHF ", avg_fraud_amount()),
+          subtitle = "Avg. Fraud Amount",
+          color = "red"
+        )
       ))
     }
     

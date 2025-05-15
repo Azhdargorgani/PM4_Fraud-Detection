@@ -27,7 +27,7 @@ train_model <- function(mode = c("initial", "retrain"),
     verboseIter = TRUE,
     classProbs = TRUE,
     summaryFunction = prSummary,
-    sampling = "smote"
+    sampling = "up"
   )
   
   model <- train(
@@ -38,7 +38,7 @@ train_model <- function(mode = c("initial", "retrain"),
     tuneLength = 5,
     metric = "F",
     ntree = ntree,
-    weights = ifelse(train_data$TX_FRAUD == "Fraud", 20, 1)
+    weights = ifelse(train_data$TX_FRAUD == "Fraud", 8, 1)
   )
   
   # ✅ Timestamped saving
