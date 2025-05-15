@@ -182,10 +182,6 @@ ui <- secure_app(
                              br(),
                              actionButton("retrain_model", "Retrain Model with New Data")
                       ),
-                      column(width = 4,
-                             br(),
-                             actionButton("train_initial_model", "Train Initial Model")
-                      )
                     ),
                     br(),
                     textOutput("selected_month_label")
@@ -242,18 +238,18 @@ ui <- secure_app(
                     collapsed = TRUE
       
                   ),
-                  box(
-                    title = "ICE Plot (Individual Conditional Expectation)",
-                    width = 12,
-                    status = "primary",
-                    solidHeader = TRUE,
-                    collapsible = TRUE,
-                    collapsed = TRUE,
-                    selectInput("ice_variable", "Select variable for ICE plot:",
-                                choices = NULL,  # wird dynamisch gefüllt
-                                selected = NULL),
-                    plotOutput("ice_plot", height = 400)
-                  )
+                  # box(
+                  #   title = "ICE Plot (Individual Conditional Expectation)",
+                  #   width = 12,
+                  #   status = "primary",
+                  #   solidHeader = TRUE,
+                  #   collapsible = TRUE,
+                  #   collapsed = TRUE,
+                  #   # selectInput("ice_variable", "Select variable for ICE plot:",
+                  #   #             choices = NULL,  # wird dynamisch gefüllt
+                  #   #             selected = NULL),
+                  #   #plotOutput("ice_plot", height = 400)
+                  # )
                   
                   
         
