@@ -5,6 +5,5 @@
 .Rproj
 .io
 *.csv
-*.rds
 .DS_Store
 80_MODELS/.DS_Storetransactions.csv
