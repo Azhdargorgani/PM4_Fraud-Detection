@@ -2,7 +2,6 @@ library(lubridate)
 library(caret)
 library(data.table)
 
-datenvorverarbeitung <- function() {
   # ------------------- Read and preprocess data ------------------- #
   terminals <- read.table("terminals.csv", sep = ",", header = TRUE)
   terminals <- subset(terminals, select = -X)
@@ -127,5 +126,4 @@ datenvorverarbeitung <- function() {
   saveRDS(test_labels, file = "99_DATA/test_labels.rds")
   saveRDS(demo_data, file = "99_DATA/demo_data.rds")
   saveRDS(demo_labels, file = "99_DATA/demo_labels.rds")
-}
 
