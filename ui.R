@@ -68,7 +68,7 @@ ui <- secure_app(
                 actionButton("sim_tx", "Simulate Transaction"),
                 
                 fluidRow(
-                  box(title = "Fraud Locations", solidHeader = FALSE, width = 5, status = "primary",
+                  box(title = "Fraud Locations Pending Review", solidHeader = FALSE, width = 5, status = "primary",
                       leafletOutput("fraud_map", height = "350px"),
                       br()
                   ),
